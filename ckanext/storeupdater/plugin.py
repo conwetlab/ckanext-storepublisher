@@ -118,11 +118,10 @@ class StoreUpdater(plugins.SingletonPlugin):
             log.error('%s(%s): %s: %s' % (method, url, type(e).__name__, str(e)))
 
     def delete_offering(self, context, pkg_dict):
-        log.info('Deleting Offering %s' % pkg_dict['title'])
-
         user_nickname = plugins.toolkit.c.user
         package = plugins.toolkit.get_action('package_show')(context, pkg_dict)
         pkg_last_name = package.get('title')
+        log.info('Deleting Offering %s' % pkg_last_name)
 
         self._make_request('delete', '%s/api/offering/offerings/%s/%s/%s' % (self.store_url, user_nickname, pkg_last_name, DEFAULT_VERSION))    # Delete offering
         self._make_request('delete', '%s/api/offering/resources/%s/%s/%s' % (self.store_url, user_nickname, pkg_last_name, DEFAULT_VERSION))    # Delete resource
