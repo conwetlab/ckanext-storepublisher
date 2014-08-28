@@ -8,7 +8,7 @@ CKAN extension to publish public datasets automatically in the Fi-Ware Store (as
 Requirements
 ------------
 
-* A CKAN instance able to connect with the Fi-Ware Store via HTTP(s)
+* A CKAN instance able to connect to the Fi-Ware Store via HTTP(s)
 * Fi-Ware Store v0.4 or higher
 
 
