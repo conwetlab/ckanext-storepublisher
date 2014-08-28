@@ -26,19 +26,6 @@ class StoreUpdater(plugins.SingletonPlugin):
         self.site_url = config.get('ckan.site_url')
         self.store_url = config.get('ckan.store_updater.store_url')
 
-        # If Store URL is not defined, the defined functions should not be executed
-        if self.store_url is None:
-            log.warn('StoreUpdater could not be loaded: ckan.store_updater.store_url is not set.')
-
-            def none_function(context, pkg_dict):
-                pass
-
-            self.after_create = none_function
-            self.after_update = none_function
-            self.after_delete = none_function
-        else:
-            log.debug('StoreUpdated loaded correctly')
-
     def _get_resource(self, pkg_dict):
         resource = {}
         name = pkg_dict.get('name', '')
@@ -108,6 +95,7 @@ class StoreUpdater(plugins.SingletonPlugin):
                 plugins.toolkit.c.usertoken_refresh()
                 # Update the header 'Authorization'
                 usertoken = plugins.toolkit.c.usertoken
+                final_headers = headers.copy()
                 final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
                 # Retry the request
                 req = req_method(url, headers=final_headers, data=data)
@@ -123,8 +111,10 @@ class StoreUpdater(plugins.SingletonPlugin):
         pkg_last_name = package.get('title')
         log.info('Deleting Offering %s' % pkg_last_name)
 
-        self._make_request('delete', '%s/api/offering/offerings/%s/%s/%s' % (self.store_url, user_nickname, pkg_last_name, DEFAULT_VERSION))    # Delete offering
-        self._make_request('delete', '%s/api/offering/resources/%s/%s/%s' % (self.store_url, user_nickname, pkg_last_name, DEFAULT_VERSION))    # Delete resource
+        if not package.get('private', False):
+            # If the offering was private, it was not published
+            self._make_request('delete', '%s/api/offering/offerings/%s/%s/%s' % (self.store_url, user_nickname, pkg_last_name, DEFAULT_VERSION))    # Delete offering
+            self._make_request('delete', '%s/api/offering/resources/%s/%s/%s' % (self.store_url, user_nickname, pkg_last_name, DEFAULT_VERSION))    # Delete resource
 
     def create_offering(self, context, pkg_dict):
 
@@ -152,17 +142,20 @@ class StoreUpdater(plugins.SingletonPlugin):
             log.info('Offering not created since the dataset %s is private' % pkg_dict['title'])
 
     def after_create(self, context, pkg_dict):
-        self.create_offering(context, pkg_dict)  # Create the offering
+        if self.store_url:
+            self.create_offering(context, pkg_dict)  # Create the offering
         return pkg_dict
 
     def after_update(self, context, pkg_dict):
         # Delete the previous offering. We need to create a new one since the store does not allow
         # to update published offerings. Open offerings are deleted permanently, so we can create a
         # new offering with the same name and version
-        self.delete_offering(context, pkg_dict)  # Delete the offering
-        self.create_offering(context, pkg_dict)  # Recreate the offering
+        if self.store_url:
+            self.delete_offering(context, pkg_dict)  # Delete the offering
+            self.create_offering(context, pkg_dict)  # Recreate the offering
         return pkg_dict
 
     def after_delete(self, context, pkg_dict):
-        self.delete_offering(context, pkg_dict)  # Delete the offering
+        if self.store_url:
+            self.delete_offering(context, pkg_dict)  # Delete the offering
         return pkg_dict
