@@ -2,7 +2,14 @@ CKAN Store Updater [![Build Status](http://hercules.ls.fi.upm.es/jenkins/buildSt
 =====================
 
 CKAN extension to publish public datasets automatically in the Fi-Ware Store (as offerings).
-**Note:** This software is only intender to integrate CKAN with the Fi-Ware Store (v0.4 or higher). 
+
+**Note:** This software is intended to integrate a CKAN instance with the Fi-Ware Store so you cannot use it with other Stores.
+
+Requirements
+------------
+
+* A CKAN instance able to connect with the Fi-Ware Store via HTTP(s)
+* Fi-Ware Store v0.4 or higher
 
 
 Installation
