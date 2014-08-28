@@ -115,28 +115,30 @@ class PluginTest(unittest.TestCase):
             self.assertIn(tag, returned_tags)
 
     @parameterized.expand([
-        ('get',    'http://example.com', {},                    None,        200),
-        ('post',   'http://example.com', {},                    None,        200),
-        ('put',    'http://example.com', {},                    None,        200),
-        ('delete', 'http://example.com', {},                    None,        200),
-        ('get',    'http://example.com', {},                    None,        400),
-        ('post',   'http://example.com', {},                    None,        400),
-        ('put',    'http://example.com', {},                    None,        400),
-        ('delete', 'http://example.com', {},                    None,        400),
-        ('get',    'http://example.com', {'Content-Type': 'a'}, 'TEST DATA', 200),
-        ('post',   'http://example.com', {'Content-Type': 'b'}, 'TEST DATA', 200),
-        ('put',    'http://example.com', {'Content-Type': 'c'}, 'TEST DATA', 200),
-        ('delete', 'http://example.com', {'Content-Type': 'd'}, 'TEST DATA', 200),
-        ('get',    'http://example.com', {},                    None,        401),
-        ('post',   'http://example.com', {},                    None,        401),
-        ('put',    'http://example.com', {},                    None,        401),
-        ('delete', 'http://example.com', {},                    None,        401),
-        ('get',    'http://example.com', {'Content-Type': 'a'}, 'TEST DATA', 401),
-        ('post',   'http://example.com', {'Content-Type': 'b'}, 'TEST DATA', 401),
-        ('put',    'http://example.com', {'Content-Type': 'c'}, 'TEST DATA', 401),
-        ('delete', 'http://example.com', {'Content-Type': 'd'}, 'TEST DATA', 401),
+        ('get',    {},                    None,        200),
+        ('post',   {},                    None,        200),
+        ('put',    {},                    None,        200),
+        ('delete', {},                    None,        200),
+        ('get',    {},                    None,        400),
+        ('post',   {},                    None,        400),
+        ('put',    {},                    None,        400),
+        ('delete', {},                    None,        400),
+        ('get',    {'Content-Type': 'a'}, 'TEST DATA', 200),
+        ('post',   {'Content-Type': 'b'}, 'TEST DATA', 200),
+        ('put',    {'Content-Type': 'c'}, 'TEST DATA', 200),
+        ('delete', {'Content-Type': 'd'}, 'TEST DATA', 200),
+        ('get',    {},                    None,        401),
+        ('post',   {},                    None,        401),
+        ('put',    {},                    None,        401),
+        ('delete', {},                    None,        401),
+        ('get',    {'Content-Type': 'a'}, 'TEST DATA', 401),
+        ('post',   {'Content-Type': 'b'}, 'TEST DATA', 401),
+        ('put',    {'Content-Type': 'c'}, 'TEST DATA', 401),
+        ('delete', {'Content-Type': 'd'}, 'TEST DATA', 401)
     ])
-    def test_make_request(self, method, url, headers, data, response_status):
+    def test_make_request(self, method, headers, data, response_status):
+        url = 'http://example.com'
+
         # Set the environ
         usertoken = plugin.plugins.toolkit.c.usertoken = {
             'token_type': 'bearer',
@@ -201,6 +203,33 @@ class PluginTest(unittest.TestCase):
 
             # Check response
             self.assertEquals(second_response, result)
+
+    def test_make_request_exception(self):
+        # Set the environ
+        usertoken = plugin.plugins.toolkit.c.usertoken = {
+            'token_type': 'bearer',
+            'access_token': 'access_token',
+            'refresh_token': 'refresh_token'
+        }
+
+        method = 'get'
+        url = 'http://example.com'
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        data = 'This is an example test...?'
+
+        expected_headers = headers.copy()
+        expected_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
+
+        req_method = MagicMock(side_effect=Exception)
+        setattr(plugin.requests, method, req_method)
+
+        # Call the function
+        self.storeUpdater._make_request(method, url, headers, data)
+
+        # Assert that the function has been called
+        req_method.assert_called_once_with(url, headers=expected_headers, data=data)
 
     @parameterized.expand([
         (True,),
