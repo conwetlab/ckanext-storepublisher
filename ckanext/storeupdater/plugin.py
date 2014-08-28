@@ -24,7 +24,7 @@ class StoreUpdater(plugins.SingletonPlugin):
     def __init__(self, name=None):
         log.debug('Init StoreUpdater plugin')
         self.site_url = config.get('ckan.site_url')
-        self.store_url = config.get('ckan.store_updater.store_url')
+        self.store_url = config.get('ckan.storeupdater.store_url')
 
     def _get_resource(self, pkg_dict):
         resource = {}

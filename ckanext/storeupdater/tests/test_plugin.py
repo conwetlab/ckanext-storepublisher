@@ -29,7 +29,7 @@ class PluginTest(unittest.TestCase):
         self._config = plugin.config
         plugin.config = {
             'ckan.site_url': 'https://localhost:8474',
-            'ckan.store_updater.store_url': 'https://store.example.com:7458'
+            'ckan.storeupdater.store_url': 'https://store.example.com:7458'
         }
 
         # Create the plugin
@@ -254,9 +254,9 @@ class PluginTest(unittest.TestCase):
             # Assert that the request has been performed
             # assert_called_with checks the last call. The last call should be the one made to remove the resource so:
             self.storeUpdater._make_request.assert_called_with('delete', '%s/api/offering/resources/%s/%s/1.0' %
-                                                               (plugin.config['ckan.store_updater.store_url'], user_nickname, package['title']))
+                                                               (plugin.config['ckan.storeupdater.store_url'], user_nickname, package['title']))
             self.storeUpdater._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/1.0'
-                                                            % (plugin.config['ckan.store_updater.store_url'], user_nickname, package['title']))
+                                                            % (plugin.config['ckan.storeupdater.store_url'], user_nickname, package['title']))
 
     @parameterized.expand([
         (True,),
@@ -297,7 +297,7 @@ class PluginTest(unittest.TestCase):
                 self.assertEquals(data, call[0][3])
 
             call_list = self.storeUpdater._make_request.call_args_list
-            store_url = plugin.config['ckan.store_updater.store_url']
+            store_url = plugin.config['ckan.storeupdater.store_url']
             base_url = '%s/api/offering' % store_url
             headers = {'Content-Type': 'application/json'}
             pkg_name = pkg_dict['title']
@@ -315,7 +315,7 @@ class PluginTest(unittest.TestCase):
         # Configure the plugin
         plugin.config = {}
         if store_url is not None:
-            plugin.config['ckan.store_updater.store_url'] = store_url
+            plugin.config['ckan.storeupdater.store_url'] = store_url
 
         self.storeUpdater = plugin.StoreUpdater()
         self.storeUpdater.create_offering = MagicMock()
@@ -343,7 +343,7 @@ class PluginTest(unittest.TestCase):
         # Configure the plugin
         plugin.config = {}
         if store_url is not None:
-            plugin.config['ckan.store_updater.store_url'] = store_url
+            plugin.config['ckan.storeupdater.store_url'] = store_url
 
         self.storeUpdater = plugin.StoreUpdater()
         self.storeUpdater.delete_offering = MagicMock()
@@ -371,7 +371,7 @@ class PluginTest(unittest.TestCase):
         # Configure the plugin
         plugin.config = {}
         if store_url is not None:
-            plugin.config['ckan.store_updater.store_url'] = store_url
+            plugin.config['ckan.storeupdater.store_url'] = store_url
 
         self.storeUpdater = plugin.StoreUpdater()
         self.storeUpdater.create_offering = MagicMock()
