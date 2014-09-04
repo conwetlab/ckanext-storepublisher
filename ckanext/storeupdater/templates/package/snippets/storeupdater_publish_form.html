@@ -1,0 +1,132 @@
+{% import 'macros/form.html' as form %}
+
+{% resource 'storeupdater/image_upload.js' %}
+{% set private = data.get('private') %}
+
+{# This provides a full page that renders a form for publishing a dataset. It can
+then itself be extended to add/remove blocks of functionality. #}
+<form class="dataset-form form-horizontal" method="post" data-module="basic-form" action>
+
+  {% block errors %}
+    {% if errors %}
+      <div class="error-explanation alert alert-error">
+        <p>{{ _('The offering could not be published:') }}</p>
+        <ul>
+          {% for key, error in errors.items() %}
+            <li data-field-label="{{ key }}">{% if key %}{{ key }}: {% endif %}{{ error[0] }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  {% endblock %}
+
+  <input type="hidden" name="pkg_id" value="{{ data.id }}" />
+
+  {% block offering_title %}
+    {{ form.input('name', id='field-name', label=_('Name'), placeholder=_('eg. The title of the offering'), value=data.title, error=errors['name'], classes=['control-full', 'control-large'], is_required=true) }}
+  {% endblock %}
+
+  {% block offering_description %}
+    {{ form.textarea('description', id='field-description', label=_('Description'), placeholder=_('eg. Offering description'), value=data.notes, error=errors.notes) }}
+  {% endblock %}
+
+  {% block offering_tags %}
+    {% set tag_attrs = {'data-module': 'autocomplete', 'data-module-tags': '', 'data-module-source': '/api/2/util/tag/autocomplete?incomplete=?'} %}
+    {{ form.input('tag_string', id='field-tags', label=_('Tags'), placeholder=_('eg. economy, mental health, government'), value=data.tag_string, error=errors.tags, classes=['control-full'], attrs=tag_attrs) }}
+  {% endblock %}
+
+  {% block offering_version %}
+    {{ form.input('version', id='field-version', label=_('Version'), placeholder=_('eg. 1.0, 2.3.4'), classes=['control-full', 'control-medium'], is_required=true) }}
+  {% endblock %}
+
+  {% block offering_license_title %}
+    {{ form.input('license_title', id='field-license_title', label=_('License'), placeholder=_('eg. Creative Commons Attribution'), value=data.get('license_title',''), classes=['control-full', 'control-medium']) }}
+  {% endblock %}
+
+  {% block offering_license_description %}
+    {{ form.textarea('license_description', id='field-license_description', label=_('License Description'), placeholder=_('License description. You can find license definitions at opendefinition.org'), error=errors.notes) }}
+  {% endblock %}
+
+  {% block image %}
+    <div class="control-group control-full" style="display: block;">
+      <label class="control-label" for="field-image-upload">{% trans %}Image{% endtrans %}</label>
+      <div class="controls ">
+        <input id="field-image-base64" type="hidden" name="image_base64">
+        <input id="field-image-upload" type="file" name="image_upload" value="" placeholder="" title="Upload a file on your computer" style="display: none;">
+        <a id="button-upload" href="javascript:;" class="btn" style="display: inline-block;">
+          <i class="icon-cloud-upload"></i>{% trans %}Upload{% endtrans %}
+        </a>
+        <a id="button-remove" href="javascript:;" class="btn btn-danger" style="display: none;">{% trans %}Remove{% endtrans %}
+        </a>
+        <span class="info-block info-inline">
+          <i class="icon-info-sign"></i>
+          {% trans %}
+            Attach an image to the offering. If you do not upload an image, a default one will be used.
+          {% endtrans %}
+        </span> 
+      </div>
+    </div>
+  {% endblock %}
+
+  {% if not private %}
+    {% block offering_open %}
+      <div class="control-group ">
+        <div class="controls">
+          <label class="checkbox" for="field-open">
+            <input id="field-open" type="checkbox" name="open" value="" checked="">
+            {% trans %}Open Offering{% endtrans %}
+            <span class="info-block info-inline" style="font-weight: normal;">
+              <i class="icon-info-sign"></i>
+              {% trans %}
+                Open Offerings cannot be acquired so their resources are public by default. Non-open offerings must be acquired even if they are free so their terms must be accepted.
+              {% endtrans %}
+            </span> 
+          </label> 
+        </div>
+      </div>
+    {% endblock %}
+  {% endif %}
+
+  {% if private %}
+    {% block offering_price %}
+      <div class="control-group control-small">
+        <label class="control-label" for="field-price">{% trans %}Price{% endtrans %}</label>
+        <div class="controls ">
+          <input id="field-price" type="text" name="price" value="" placeholder="eg. 0, 28.99, 3.50, 9.00">
+          <span class="info-block info-inline">
+            <i class="icon-info-sign"></i>
+            {% trans %}
+              Price in Euros. Leave it in blank to create a <strong>free</strong> offering.
+            {% endtrans %}
+          </span>
+        </div>
+      </div>
+    {% endblock %}
+  {% endif %}
+
+  {% if private and 'acquire_url' in data %}
+    {% block offering_update_acquire_url %}
+      <div class="control-group">
+        <div class="controls">
+          <label class="checkbox" for="field-update_acquire_url">
+            <input id="field-update_acquire_url" type="checkbox" name="update_acquire_url" value="" checked="">
+            {% trans %}Update Acquire URL{% endtrans %}  
+            <span class="info-block info-inline" style="font-weight: normal;">
+              <i class="icon-info-sign"></i>
+              {% trans %}
+                This dataset has an Acquire URL attached. If you enable this checkbox, this URL will be updated with the URL of the created offering.
+              {% endtrans %}
+            </span>        
+          </label>
+        </div>
+      </div>
+    {% endblock %}
+  {% endif %}
+
+
+  {% block form_actions %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" name="save">{% block save_button_text %}{{ _('Publish Offering') }}{% endblock %}</button>
+    </div>
+  {% endblock %}
+</form>

@@ -1,0 +1,22 @@
+{% extends "package/edit.html" %}
+
+{% block title %}Publish Dataset - {{ super() }}{% endblock %}
+
+{% block secondary_content %}
+
+  {{ super() }}
+
+  <section class="module module-narrow module-shallow">
+    <h2 class="module-heading"><i class="icon-info-sign"></i>{% trans %}Publish Dataset in the FIWARE Store{% endtrans %}</h2>
+    <div class="module-content">
+      <p>
+         FIWARE Store is the main FIWARE showcase and is the best way to sell/announce your dataset. This form ease you the task of creaing an offering in the FIWARE Store. Just fill the following fields. Some fields are filled automatically based on the dataset but you can change their content.
+      </p>
+    </div>
+  </section>
+
+{% endblock %}
+
+{% block primary_content_inner %}
+    {% snippet "package/snippets/storeupdater_publish_form.html", data=c.pkg_dict, errors=c.errors %}
+{% endblock %}
