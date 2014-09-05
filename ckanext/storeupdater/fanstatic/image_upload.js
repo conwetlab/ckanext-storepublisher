@@ -37,6 +37,6 @@
     });
 
     $('#button-upload').on('click', function() {
-         $('#field-image_upload').click();
+        $('#field-image_upload').click();
     })
 })();
