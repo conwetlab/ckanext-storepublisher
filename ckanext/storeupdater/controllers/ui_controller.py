@@ -106,7 +106,10 @@ class PublishControllerUI(base.BaseController):
 
         log.info('%s(%s): %s %s' % (method, url, req.status_code, req.text))
 
-        if req.status_code / 100 != 2:
+        status_code_first_digit = req.status_code / 100
+        invalid_first_digits = [4, 5]
+
+        if status_code_first_digit in invalid_first_digits:
             error_msg = re.findall('<error>(.*)</error>', req.text)[0]
             raise Exception(error_msg)
 
