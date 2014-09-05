@@ -123,8 +123,8 @@ class PublishControllerUI(base.BaseController):
             # Delete the resource only if it was created
             if resource_created:
                 self._make_request('delete', '%s/api/offering/resources/%s/%s/%s' % (self.store_url, user_nickname, data['name'], data['version']))
-        except Exception:
-            pass
+        except Exception as e:
+            log.warn('Rollback failed %s' % e)
 
     def create_offering(self, data):
 
@@ -150,10 +150,12 @@ class PublishControllerUI(base.BaseController):
                                headers, json.dumps({'marketplaces': []}))                                               # Publish the offering
 
             return True         # True = Offering created correctly
-        except requests.ConnectionError:
+        except requests.ConnectionError as e:
+            log.warn(e)
             self._rollback(resource_created, offering_created, data)
             return 'It was impossible to connect with the Store'
         except Exception as e:
+            log.warn(e)
             self._rollback(resource_created, offering_created, data)
             return e.message    # Return the error message
 
@@ -170,9 +172,11 @@ class PublishControllerUI(base.BaseController):
         try:
             tk.check_access('package_update', context)
         except tk.NotAuthorized:
-            tk.abort(401, tk._('User %s not authorized to edit %s') % (c.user, id))
+            log.warn('User %s not authorized to publish %s in the FIWARE Store' % (c.user, id))
+            tk.abort(401, tk._('User %s not authorized to publish %s') % (c.user, id))
 
         # Get the dataset and set template variables
+        # It's assumed that the user can view a package if he/she can update it
         dataset = tk.get_action('package_show')(context, {'id': id})
         c.pkg_dict = dataset
         c.errors = {}
@@ -204,20 +208,24 @@ class PublishControllerUI(base.BaseController):
                 try:
                     data['price'] = float(price)
                 except Exception:
+                    log.warn('%r is not a valid price' % price)
                     c.errors['price'] = ['"%s" is not a valid number' % price]
 
             # Check that all the required fields are provided
             required_fields = ['pkg_id', 'name', 'version']
             for field in required_fields:
                 if not data[field]:
+                    log.warn('Field %r was not provided' % field)
                     c.errors[field.capitalize()] = ['This filed is required to publish the offering']
 
             # Private datasets cannot be offered as open offerings
             if dataset['private'] is True and data['is_open']:
+                log.warn('User tried to create an open offering for a private dataset')
                 c.errors['Open'] = ['Private Datasets cannot be offered as Open Offerings']
 
             # Public datasets cannot be offered with price
             if 'price' in data and dataset['private'] is False and data['price'] != 0.0:
+                log.warn('User tried to create a paid offering for a public dataset')
                 c.errors['Price'] = ['You cannot set a price to a dataset that is public since everyone can access it']
 
             if not c.errors:
@@ -232,6 +240,7 @@ class PublishControllerUI(base.BaseController):
                         name = data['name'].replace(' ', '%20')
                         dataset['acquire_url'] = '%s/offering/%s/%s/%s' % (self.store_url, user_nickname, name, data['version'])
                         tk.get_action('package_update')(context, dataset)
+                        log.info('Acquire URL updated correctly')
 
                     helpers.flash_success(tk._('Offering %s published correctly' % data['name']))
 

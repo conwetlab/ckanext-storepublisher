@@ -1,14 +1,11 @@
 import ckan.plugins as plugins
-import logging
-
-log = logging.getLogger(__name__)
 
 
 class StoreUpdater(plugins.SingletonPlugin):
 
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IRoutes, inherit=True)
- 
+
     def update_config(self, config):
         # Add this plugin's templates dir to CKAN's extra_template_paths, so
         # that CKAN will use this plugin's custom templates.
