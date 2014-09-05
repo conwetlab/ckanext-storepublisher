@@ -5,7 +5,7 @@
 
 {# This provides a full page that renders a form for publishing a dataset. It can
 then itself be extended to add/remove blocks of functionality. #}
-<form class="dataset-form form-horizontal" method="post" data-module="basic-form" action>
+<form class="dataset-form form-horizontal" method="post" data-module="basic-form" action enctype="multipart/form-data">
 
   {% block errors %}
     {% if errors %}
@@ -49,10 +49,9 @@ then itself be extended to add/remove blocks of functionality. #}
 
   {% block image %}
     <div class="control-group control-full" style="display: block;">
-      <label class="control-label" for="field-image-upload">{% trans %}Image{% endtrans %}</label>
+      <label class="control-label" for="field-image_upload">{% trans %}Image{% endtrans %}</label>
       <div class="controls ">
-        <input id="field-image-base64" type="hidden" name="image_base64">
-        <input id="field-image-upload" type="file" name="image_upload" value="" placeholder="" title="Upload a file on your computer" style="display: none;">
+        <input id="field-image_upload" type="file" name="image_upload" value="" placeholder="" title="Upload a file on your computer" style="display: none;">
         <a id="button-upload" href="javascript:;" class="btn" style="display: inline-block;">
           <i class="icon-cloud-upload"></i>{% trans %}Upload{% endtrans %}
         </a>

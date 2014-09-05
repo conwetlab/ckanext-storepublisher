@@ -220,8 +220,15 @@ class PublishControllerUI(base.BaseController):
             data['license_description'] = request.POST.get('license_description', '')
             data['version'] = request.POST.get('version', '')
             data['is_open'] = 'open' in request.POST
-            image = request.POST.get('image_base64', LOGO_CKAN_B64)
-            data['image_base64'] = image if image != '' else LOGO_CKAN_B64
+
+            # Read image
+            image_field = request.POST['image_upload']
+            # image_filed == '' when no file has been uploaded
+
+            if image_field != '':
+                data['image_base64'] = base64.b64encode(image_field.file.read())
+            else:
+                data['image_base64'] = LOGO_CKAN_B64
 
             # Convert price into float (it's given as string)
             price = request.POST.get('price', '')
