@@ -110,7 +110,8 @@ class PublishControllerUI(base.BaseController):
         invalid_first_digits = [4, 5]
 
         if status_code_first_digit in invalid_first_digits:
-            error_msg = re.findall('<error>(.*)</error>', req.text)[0]
+            errors = re.findall('<error>(.*)</error>', req.text)
+            error_msg = errors[0] if errors else 'Unknown Error: %s' % req.text
             raise Exception(error_msg)
 
         return req
