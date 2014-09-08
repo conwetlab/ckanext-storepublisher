@@ -26,6 +26,7 @@ import unittest
 from mock import MagicMock
 from nose_parameterized import parameterized
 
+
 OFFERING_INFO_BASE = {
     'pkg_id': 'identifier',
     'name': 'Offering 1',
@@ -39,8 +40,17 @@ OFFERING_INFO_BASE = {
     'image_base64': 'IMGB4/png/data'
 }
 EXCEPTION_MSG = 'Exception Message'
-ConnectionError = controller.requests.ConnectionError   # Needed since it will be risen
 CONNECTION_ERROR_MSG = 'It was impossible to connect with the Store'
+
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+filepath = os.path.join(__dir__, '../assets/logo-ckan.png')
+
+with open(filepath, 'rb') as f:
+    LOGO_CKAN_B64 = base64.b64encode(f.read())
+
+
+class ConnectionError(Exception):
+    pass
 
 
 class UIControllerTest(unittest.TestCase):
@@ -50,10 +60,23 @@ class UIControllerTest(unittest.TestCase):
         # Mocks
         self._toolkit = controller.plugins.toolkit
         controller.plugins.toolkit = MagicMock()
+        controller.plugins.toolkit.NotAuthorized = self._toolkit.NotAuthorized
+
+        self._model = controller.model
+        controller.model = MagicMock()
+
+        self._helpers = controller.helpers
+        controller.helpers = MagicMock()
+
+        self._base64 = controller.base64
+        controller.base64 = MagicMock()
 
         self._requests = controller.requests
         controller.requests = MagicMock()
         controller.requests.ConnectionError = ConnectionError    # Recover Exception
+
+        self._request = controller.request
+        controller.request = MagicMock()
 
         self._config = controller.config
         controller.config = {
@@ -73,7 +96,11 @@ class UIControllerTest(unittest.TestCase):
 
     def tearDown(self):
         controller.plugins.toolkit = self._toolkit
-        controller.plugins.requests = self._requests
+        controller.requests = self._requests
+        controller.base64 = self._base64
+        controller.request = self._request
+        controller.model = self._model
+        controller.helper = self._helpers
         controller.config = self._config
 
         self.instanceController._make_request = self._make_request
@@ -339,3 +366,156 @@ class UIControllerTest(unittest.TestCase):
             self.assertEquals(expected_result, result)
             self.instanceController._rollback.assert_called_once_with(resource_created, offering_created, OFFERING_INFO_BASE)
 
+    @parameterized.expand([
+        (False, False, {},),
+        # Test missing fields
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},),
+        (True,  False, {'version': '1.0', 'pkg_id': 'package_id'}),
+        (True,  False, {'name': 'a', 'pkg_id': 'package_id'}),
+        (True,  False, {'pkg_id': 'package_id'}),
+        (True,  False, {'name': 'a', 'version': '1.0'}),
+        # Test invalid prices
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'price': 'a'},),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'price': '5.a'},),
+        # Test open offerings (open offerings should not contain private datasets)
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'open': ''},),
+        (True,  True,  {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'open': ''},),
+        # Public datastets cannot be offering in paid offerings
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'price': '1.0'},),
+        (True,  True,  {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'price': '1.0'},),
+        # 'image_upload' == '' happens when the user has not selected a file, so the default one must be used
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'image_upload': ''},),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'image_upload': MagicMock()},),
+        # 
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},                               'Impossible to connect with the Store'),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},     'Impossible to connect with the Store'),
+        # Requests with the fields not testes above
+        # Test with and without tags
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
+                        'license_title': 'cc', 'license_description': 'Desc', 'tag_string': 'tag1,tag2,tag3'}),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
+                        'license_title': 'cc', 'license_description': 'Desc', 'tag_string': ''}),
+        # Request will all the fields
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
+                        'license_title': 'cc', 'license_description': 'Desc', 'tag_string': 'tag1,tag2,tag3',
+                         'price': '1.1', 'image_upload': MagicMock(), 'update_acquire_url': ''}),
+    ])
+    def test_publish(self, allowed, private, post_content={}, create_offering_res=True):
+
+        errors = {}
+        current_package = {'tags': [{'name': 'tag1'}, {'name': 'tag2'}], 'private': private, 'acquire_url': 'http://google.es'}
+        package_show = MagicMock(return_value=current_package)
+        package_update = MagicMock()
+
+        def _get_action_side_effect(action):
+            if action == 'package_show':
+                return package_show
+            else:
+                return package_update
+
+        # Mock: create_offering ==> True and False!
+        controller.plugins.toolkit.get_action = MagicMock(side_effect=_get_action_side_effect)
+        controller.plugins.toolkit.check_access = MagicMock(side_effect=self._toolkit.NotAuthorized if allowed is False else None)
+        controller.plugins.toolkit._ = self._toolkit._
+        controller.request.POST = post_content
+        self.instanceController.create_offering = MagicMock(return_value=create_offering_res)
+        user = controller.plugins.toolkit.c.user
+        pkg_id = 'dhjus2-fdsjwdf-fq-dsjager'
+
+        expected_context = {'model': controller.model, 'session': controller.model.Session,
+                            'user': controller.plugins.toolkit.c.user, 'auth_user_obj': controller.plugins.toolkit.c.userobj,
+                            }
+
+        # Call the function
+        self.instanceController.publish(pkg_id)
+
+        # Check that the check_access function has been called
+        controller.plugins.toolkit.check_access.assert_called_once_with('package_update', expected_context)
+
+        # Check that the abort function is called properly
+        if not allowed:
+            controller.plugins.toolkit.abort.assert_called_once_with(401, 'User %s not authorized to publish %s' % (user, pkg_id))
+        else:
+
+            tags = []
+
+            if post_content.get('tag_string', '') != '':
+                tags = post_content['tag_string'].split(',')
+
+            # Calculate errors
+            MISSING_ERROR = 'This filed is required to publish the offering'
+
+            if 'name' not in post_content:
+                errors['Name'] = [MISSING_ERROR]
+            
+            if 'version' not in post_content:
+                errors['Version'] = [MISSING_ERROR]
+
+            if 'pkg_id' not in post_content:
+                errors['Pkg_id'] = [MISSING_ERROR]
+
+            price = post_content.get('price', '')
+            if price != '':
+                try:
+                    real_price = float(post_content['price'])
+                    if real_price > 0 and not private:
+                        errors['Price'] = ['You cannot set a price to a dataset that is public since everyone can access it']
+                except Exception:
+                    errors['Price'] = ['"%s" is not a valid number' % price]
+            else:
+                real_price = 0.0
+
+            if 'open' in post_content and private:
+                errors['Open'] = ['Private Datasets cannot be offered as Open Offerings']
+
+            if errors:
+                self.assertEquals(0, self.instanceController.create_offering.call_count)
+                # Errors are checked at the end
+            else:
+
+                # Default image should be used if the users has not uploaded a image
+                image_field = post_content.get('image_upload', '')
+                if image_field != '':
+                    controller.base64.b64encode.assert_called_once_with(image_field.file.read.return_value)
+                    expected_image = controller.base64.b64encode.return_value
+                else:
+                    self.assertEquals(0, controller.base64.b64encode.call_count)
+                    expected_image = LOGO_CKAN_B64
+
+                expected_data = {
+                    'name': post_content['name'],
+                    'pkg_id': post_content['pkg_id'],
+                    'version': post_content['version'],
+                    'description': post_content.get('description', ''),
+                    'license_title': post_content.get('license_title', ''),
+                    'license_description': post_content.get('license_description', ''),
+                    'is_open': 'open' in post_content,
+                    'tags': tags,
+                    'price': real_price,
+                    'image_base64': expected_image
+                }
+
+                self.instanceController.create_offering.assert_called_once_with(expected_data)
+
+                if create_offering_res is True:
+                    controller.helpers.flash_success.assert_called_once_with('Offering %s published correctly' % post_content['name'])
+                    # If 'update_acquire_url' is in the request content and 'create_offering' does not fail,
+                    # the package_update function should be called.
+                    if 'update_acquire_url' in post_content:
+                        store_url = controller.config['ckan.storeupdater.store_url']
+                        expected_ds = current_package.copy()
+                        expected_ds['acquire_url'] = '%s/offering/%s/%s/%s' % (store_url, user, post_content['name'], post_content['version'])
+                        package_update.assert_called_once_with(expected_context, expected_ds)
+                else:
+                    errors['Store'] = [create_offering_res]
+                    # The package should not be updated if the create_offering returns an error
+                    # even if 'update_acquire_url' is present in the request content.
+                    self.assertEquals(0, package_update.call_count)
+
+        expected_pkg = current_package
+        expected_pkg['tags'] = [tag['name'] for tag in current_package['tags']]
+        self.assertEquals(expected_pkg, controller.plugins.toolkit.c.pkg_dict)
+        self.assertEquals(errors, controller.plugins.toolkit.c.errors)
+
+        controller.plugins.toolkit.render('package/publish.html')

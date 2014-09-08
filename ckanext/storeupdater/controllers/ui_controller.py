@@ -229,7 +229,7 @@ class PublishControllerUI(base.BaseController):
                 data['tags'] = tag_string.split(',')
 
             # Read image
-            image_field = request.POST['image_upload']
+            image_field = request.POST.get('image_upload', '')
             # image_filed == '' when no file has been uploaded
 
             if image_field != '':
@@ -246,7 +246,7 @@ class PublishControllerUI(base.BaseController):
                     data['price'] = float(price)
                 except Exception:
                     log.warn('%r is not a valid price' % price)
-                    c.errors['price'] = ['"%s" is not a valid number' % price]
+                    c.errors['Price'] = ['"%s" is not a valid number' % price]
 
             # Check that all the required fields are provided
             required_fields = ['pkg_id', 'name', 'version']
