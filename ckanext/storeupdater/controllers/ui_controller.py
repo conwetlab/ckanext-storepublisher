@@ -215,11 +215,18 @@ class PublishControllerUI(base.BaseController):
             data['pkg_id'] = request.POST.get('pkg_id', '')
             data['name'] = request.POST.get('name', '')
             data['description'] = request.POST.get('description', '')
-            data['tags'] = request.POST.get('tag_string', '').split(',')
             data['license_title'] = request.POST.get('license_title', '')
             data['license_description'] = request.POST.get('license_description', '')
             data['version'] = request.POST.get('version', '')
             data['is_open'] = 'open' in request.POST
+
+            # Get tags
+            # ''.split(',') ==> ['']
+            tag_string = request.POST.get('tag_string', '')
+            if tag_string == '':
+                data['tags'] = []
+            else:
+                data['tags'] = tag_string.split(',')
 
             # Read image
             image_field = request.POST['image_upload']
