@@ -195,6 +195,7 @@ class UIControllerTest(unittest.TestCase):
     ])
     def test_make_request(self, method, headers, data, response_status):
         url = 'http://example.com'
+        ERROR_MSG = 'This is an example error!'
 
         # Set the environ
         usertoken = controller.plugins.toolkit.c.usertoken = {
@@ -219,7 +220,7 @@ class UIControllerTest(unittest.TestCase):
         # Set the response status
         first_response = MagicMock()
         first_response.status_code = response_status
-        first_response.text = '<error>This is an example error!</error>'
+        first_response.text = '<error>%s</error>' % ERROR_MSG
         second_response = MagicMock()
         second_response.status_code = 201
 
@@ -234,7 +235,13 @@ class UIControllerTest(unittest.TestCase):
 
         # Call the function
         if response_status > 399 and response_status != 401:
-            self.assertRaises(Exception, self.instanceController._make_request, (method, url, headers, data))
+            try:
+                self.instanceController._make_request(method, url, headers, data)
+                exception_thrown = False
+            except Exception as e:
+                self.assertEquals(ERROR_MSG, e.message)
+                exception_thrown = True
+            self.assertTrue(exception_thrown)
         else:
             result = self.instanceController._make_request(method, url, headers, data)
 
