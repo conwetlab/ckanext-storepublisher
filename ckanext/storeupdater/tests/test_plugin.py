@@ -46,6 +46,15 @@ class PluginTest(unittest.TestCase):
     def test_implementation(self, interface):
         self.assertTrue(interface.implemented_by(plugin.StoreUpdater))
 
+    def test_config(self):
+        # Call the method
+        config = {'config1': 'abcdef', 'config2': '12345'}
+        self.storeUpdater.update_config(config)
+
+        # Check that the config has been updated
+        plugin.plugins.toolkit.add_template_directory.assert_called_once_with(config, 'templates')
+        plugin.plugins.toolkit.add_resource.assert_called_once_with('fanstatic', 'storeupdater')
+
     def test_map(self):
         # Call the method
         m = MagicMock()
