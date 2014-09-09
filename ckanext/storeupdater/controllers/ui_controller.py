@@ -207,7 +207,7 @@ class PublishControllerUI(base.BaseController):
         # Tag string is needed in order to set the list of tags in the form
         if 'tag_string' not in c.pkg_dict:
             tags = [tag['name'] for tag in c.pkg_dict.get('tags', [])]
-            c.pkg_dict['tag_string'] = ', '.join(tags)
+            c.pkg_dict['tag_string'] = ','.join(tags)
 
         # when the data is provided
         if request.POST:
@@ -223,14 +223,11 @@ class PublishControllerUI(base.BaseController):
             # Get tags
             # ''.split(',') ==> ['']
             tag_string = request.POST.get('tag_string', '')
-            if tag_string == '':
-                data['tags'] = []
-            else:
-                data['tags'] = tag_string.split(',')
+            data['tags'] = [] if tag_string == '' else tag_string.split(',')
 
             # Read image
+            # 'image_upload' == '' if the user has not set a file
             image_field = request.POST.get('image_upload', '')
-            # image_filed == '' when no file has been uploaded
 
             if image_field != '':
                 data['image_base64'] = base64.b64encode(image_field.file.read())

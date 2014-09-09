@@ -40,17 +40,17 @@ OFFERING_INFO_BASE = {
     'image_base64': 'IMGB4/png/data'
 }
 EXCEPTION_MSG = 'Exception Message'
+MISSING_ERROR = 'This filed is required to publish the offering'
 CONNECTION_ERROR_MSG = 'It was impossible to connect with the Store'
+
+# Need to be defined here, since it will be used as tests parameter
+ConnectionError = controller.requests.ConnectionError
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 filepath = os.path.join(__dir__, '../assets/logo-ckan.png')
 
 with open(filepath, 'rb') as f:
     LOGO_CKAN_B64 = base64.b64encode(f.read())
-
-
-class ConnectionError(Exception):
-    pass
 
 
 class UIControllerTest(unittest.TestCase):
@@ -86,7 +86,8 @@ class UIControllerTest(unittest.TestCase):
 
         # Create the plugin
         self.instanceController = controller.PublishControllerUI()
-        # Save the functions and restore them later since it will be mocked in some tests
+        
+        # Save controller functions since it will be mocked in some tests
         self._make_request = self.instanceController._make_request
         self._rollback = self.instanceController._rollback
         self._get_resource = self.instanceController._get_resource
@@ -103,20 +104,13 @@ class UIControllerTest(unittest.TestCase):
         controller.helper = self._helpers
         controller.config = self._config
 
+        # Restore controller functions
         self.instanceController._make_request = self._make_request
         self.instanceController._rollback = self._rollback
         self.instanceController.create_offering = self._create_offering
         self.instanceController._get_resource = self._get_resource
         self.instanceController._get_offering = self._get_offering
         self.instanceController._get_tags = self._get_tags
-
-    def read_ckan_logo_b64(self):
-        __dir__ = os.path.dirname(os.path.abspath(__file__))
-        filepath = os.path.join(__dir__, '../assets/logo-ckan.png')
-
-        with open(filepath, 'rb') as f:
-            b64image = base64.b64encode(f.read())
-        return b64image
 
     def test_get_resource(self):
         resource = self.instanceController._get_resource(OFFERING_INFO_BASE)
@@ -210,6 +204,7 @@ class UIControllerTest(unittest.TestCase):
             'refresh_token': 'new_refresh_token'
         }
 
+        # Mock refresh_function
         def refresh_function_side_effect():
             controller.plugins.toolkit.c.usertoken = newtoken
         controller.plugins.toolkit.c.usertoken_refresh = MagicMock(side_effect=refresh_function_side_effect)
@@ -234,14 +229,10 @@ class UIControllerTest(unittest.TestCase):
         setattr(controller.requests, method, req_method)
 
         # Call the function
-        if response_status > 399 and response_status != 401:
-            try:
+        if response_status > 399 and response_status < 600 and response_status != 401:
+            with self.assertRaises(Exception) as e:
                 self.instanceController._make_request(method, url, headers, data)
-                exception_thrown = False
-            except Exception as e:
                 self.assertEquals(ERROR_MSG, e.message)
-                exception_thrown = True
-            self.assertTrue(exception_thrown)
         else:
             result = self.instanceController._make_request(method, url, headers, data)
 
@@ -256,7 +247,7 @@ class UIControllerTest(unittest.TestCase):
                 # Check URL
                 self.assertEquals(url, req_method.call_args_list[0][0][0])
                 self.assertEquals(url, req_method.call_args_list[1][0][0])
-                
+
                 # Check headers
                 expected_initial_headers = headers.copy()
                 expected_initial_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
@@ -290,11 +281,12 @@ class UIControllerTest(unittest.TestCase):
         expected_headers = headers.copy()
         expected_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
 
-        req_method = MagicMock(side_effect=Exception)
+        req_method = MagicMock(side_effect=ConnectionError)
         setattr(controller.requests, method, req_method)
 
         # Call the function
-        self.assertRaises(Exception, self.instanceController._make_request, (method, url, headers, data))
+        with self.assertRaises(ConnectionError):
+            self.instanceController._make_request(method, url, headers, data)
 
     @parameterized.expand([
         (True,  True),
@@ -304,6 +296,7 @@ class UIControllerTest(unittest.TestCase):
     ])
     def test_rollback(self, resource_created, offering_created):
 
+        expected_number_calls = 0
         user_nickname = controller.plugins.toolkit.c.user = 'smg'
         # Configure mocks
         self.instanceController._make_request = MagicMock()
@@ -311,11 +304,17 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._rollback(resource_created, offering_created, OFFERING_INFO_BASE)
 
         if resource_created:
-            self.instanceController._make_request.assert_called_with('delete', '%s/api/offering/resources/%s/%s/%s' % (controller.config['ckan.storeupdater.store_url'],
-                                                                     user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (controller.config['ckan.storeupdater.store_url'],
+                                                                  user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
+            expected_number_calls += 1
+
         if offering_created:
             self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (controller.config['ckan.storeupdater.store_url'],
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
+            expected_number_calls += 1
+
+        # Check that _make_request has been called the appropriate number of times
+        self.assertEquals(expected_number_calls, self.instanceController._make_request.call_count)
 
     @parameterized.expand([
         (None,),
@@ -343,11 +342,10 @@ class UIControllerTest(unittest.TestCase):
 
         # Call the function
         result = self.instanceController.create_offering(OFFERING_INFO_BASE)
+        self.assertEquals(expected_result, result)
 
         # result == True if the offering was created properly
         if expected_result is True:
-
-            self.assertEquals(expected_result, result)
 
             self.instanceController._get_resource.assert_called_once_with(OFFERING_INFO_BASE)
             self.instanceController._get_offering.assert_called_once_with(OFFERING_INFO_BASE)
@@ -370,7 +368,6 @@ class UIControllerTest(unittest.TestCase):
             check_make_request_calls(call_list[2], 'put', '%s/offerings/%s/%s/%s/tag' % (base_url, user_nickname, pkg_name, version), headers, json.dumps(tags))
             check_make_request_calls(call_list[3], 'post', '%s/offerings/%s/%s/%s/publish' % (base_url, user_nickname, pkg_name, version), headers, json.dumps({'marketplaces': []}))
         else:
-            self.assertEquals(expected_result, result)
             self.instanceController._rollback.assert_called_once_with(resource_created, offering_created, OFFERING_INFO_BASE)
 
     @parameterized.expand([
@@ -384,7 +381,7 @@ class UIControllerTest(unittest.TestCase):
         # Test invalid prices
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'price': 'a'},),
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'price': '5.a'},),
-        # Test open offerings (open offerings should not contain private datasets)
+        # Test open offerings (open offerings must not contain private datasets)
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'open': ''},),
         (True,  True,  {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'open': ''},),
         # Public datastets cannot be offering in paid offerings
@@ -393,25 +390,26 @@ class UIControllerTest(unittest.TestCase):
         # 'image_upload' == '' happens when the user has not selected a file, so the default one must be used
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'image_upload': ''},),
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'image_upload': MagicMock()},),
-        # 
+        # If 'update_acquire_url' is in the request content, the acquire_url should be updated
+        # only when the offering has been published correctly
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},),
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},                               'Impossible to connect with the Store'),
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},     'Impossible to connect with the Store'),
-        # Requests with the fields not testes above
+        # Requests with the fields not tested above
         # Test with and without tags
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
                         'license_title': 'cc', 'license_description': 'Desc', 'tag_string': 'tag1,tag2,tag3'}),
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
                         'license_title': 'cc', 'license_description': 'Desc', 'tag_string': ''}),
         # Request will all the fields
-        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
+        (True,  False, {'name': 'A B C D', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
                         'license_title': 'cc', 'license_description': 'Desc', 'tag_string': 'tag1,tag2,tag3',
                          'price': '1.1', 'image_upload': MagicMock(), 'update_acquire_url': ''}),
     ])
     def test_publish(self, allowed, private, post_content={}, create_offering_res=True):
 
         errors = {}
-        current_package = {'tags': [{'name': 'tag1'}, {'name': 'tag2'}], 'private': private, 'acquire_url': 'http://google.es'}
+        current_package = {'tags': [{'name': 'tag1'}, {'name': 'tag2'}], 'private': private, 'acquire_url': 'http://example.com'}
         package_show = MagicMock(return_value=current_package)
         package_update = MagicMock()
 
@@ -421,7 +419,6 @@ class UIControllerTest(unittest.TestCase):
             else:
                 return package_update
 
-        # Mock: create_offering ==> True and False!
         controller.plugins.toolkit.get_action = MagicMock(side_effect=_get_action_side_effect)
         controller.plugins.toolkit.check_access = MagicMock(side_effect=self._toolkit.NotAuthorized if allowed is False else None)
         controller.plugins.toolkit._ = self._toolkit._
@@ -445,14 +442,11 @@ class UIControllerTest(unittest.TestCase):
             controller.plugins.toolkit.abort.assert_called_once_with(401, 'User %s not authorized to publish %s' % (user, pkg_id))
         else:
 
-            tags = []
-
-            if post_content.get('tag_string', '') != '':
-                tags = post_content['tag_string'].split(',')
+            # Get the list of tags
+            tag_string = post_content.get('tag_string', '')
+            tags = [] if tag_string == '' else tag_string.split(',')
 
             # Calculate errors
-            MISSING_ERROR = 'This filed is required to publish the offering'
-
             if 'name' not in post_content:
                 errors['Name'] = [MISSING_ERROR]
             
@@ -477,8 +471,8 @@ class UIControllerTest(unittest.TestCase):
                 errors['Open'] = ['Private Datasets cannot be offered as Open Offerings']
 
             if errors:
+                # If the parameters are invalid, the function create_offering must not be called
                 self.assertEquals(0, self.instanceController.create_offering.call_count)
-                # Errors are checked at the end
             else:
 
                 # Default image should be used if the users has not uploaded a image
@@ -512,7 +506,8 @@ class UIControllerTest(unittest.TestCase):
                     if 'update_acquire_url' in post_content:
                         store_url = controller.config['ckan.storeupdater.store_url']
                         expected_ds = current_package.copy()
-                        expected_ds['acquire_url'] = '%s/offering/%s/%s/%s' % (store_url, user, post_content['name'], post_content['version'])
+                        expected_name = post_content['name'].replace(' ', '%20')
+                        expected_ds['acquire_url'] = '%s/offering/%s/%s/%s' % (store_url, user, expected_name, post_content['version'])
                         package_update.assert_called_once_with(expected_context, expected_ds)
                 else:
                     errors['Store'] = [create_offering_res]
@@ -520,8 +515,8 @@ class UIControllerTest(unittest.TestCase):
                     # even if 'update_acquire_url' is present in the request content.
                     self.assertEquals(0, package_update.call_count)
 
-        expected_pkg = current_package
-        expected_pkg['tags'] = [tag['name'] for tag in current_package['tags']]
+        expected_pkg = current_package.copy()
+        expected_pkg['tag_string'] = ','.join([tag['name'] for tag in current_package['tags']])
         self.assertEquals(expected_pkg, controller.plugins.toolkit.c.pkg_dict)
         self.assertEquals(errors, controller.plugins.toolkit.c.errors)
 
