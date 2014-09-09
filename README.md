@@ -1,15 +1,19 @@
 CKAN Store Updater [![Build Status](http://hercules.ls.fi.upm.es/jenkins/buildStatus/icon?job=ckan_storeupdater)](http://hercules.ls.fi.upm.es/jenkins/job/ckan_storeupdater/)
 =====================
 
-CKAN extension to publish public datasets automatically in the Fi-Ware Store (as offerings).
+CKAN extension that allows users to publish datasets in the FIWARE Store (as offerings) in a simpler way. To do so, a new tab is added in the Datasets *Manage* menu that offers a form to set the basic options of the offering.
 
-**Note:** This software is intended to integrate a CKAN instance with the Fi-Ware Store so you cannot use it with other Stores.
+Offerings are **not** automatically published so the dataset creator must access this form and complete it in order to publish the dataset in the FIWARE Store.
+
+**Note:** This software is intended to integrate a CKAN instance with the FIWARE Store so it won't probably work with other Stores.
 
 Requirements
 ------------
 
 * A CKAN instance able to connect to the Fi-Ware Store via HTTP(s)
 * Fi-Ware Store v0.4 or higher
+* [OAuth2 CKAN Extension](https://github.com/conwetlab/ckanext-oauth2/). This extension is needed since the requests sent to the Store must include the OAuth2 credentials to identify the user that is creating the offering.
+* Optional: [CKAN Private Dataset Extension](https://github.com/conwetlab/ckanext-privatedatasets/)
 
 
 Installation
