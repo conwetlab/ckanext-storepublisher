@@ -10,8 +10,8 @@ Offerings are **not** automatically published so the dataset creator must access
 Requirements
 ------------
 
-* A CKAN instance able to connect to the Fi-Ware Store via HTTP(s)
-* Fi-Ware Store v0.4 or higher
+* A CKAN instance able to connect to the FIWARE Store via HTTP(s)
+* [FIWARE Store v0.4 or higher](https://github.com/conwetlab/wstore/)
 * [OAuth2 CKAN Extension](https://github.com/conwetlab/ckanext-oauth2/). This extension is needed since the requests sent to the Store must include the OAuth2 credentials to identify the user that is creating the offering.
 * Optional: [CKAN Private Dataset Extension](https://github.com/conwetlab/ckanext-privatedatasets/)
 
