@@ -93,11 +93,11 @@ paster db init -c test-core.ini
 cd ..
 
 
-echo "Installing ckanext-storeupdater and its requirements..."
+echo "Installing ckanext-storepublisher and its requirements..."
 python setup.py develop
 pip install -r dev-requirements.txt
 
 
 echo "Running tests..."
-nosetests --ckan --with-xunit --with-pylons=test.ini ckanext/storeupdater/tests/ --with-coverage \
---cover-package=ckanext.storeupdater --cover-inclusive --cover-erase . --cover-xml
+nosetests --ckan --with-xunit --with-pylons=test.ini ckanext/storepublisher/tests/ --with-coverage \
+--cover-package=ckanext.storepublisher --cover-inclusive --cover-erase . --cover-xml

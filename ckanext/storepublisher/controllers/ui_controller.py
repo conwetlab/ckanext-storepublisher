@@ -2,20 +2,20 @@
 
 # Copyright (c) 2014 CoNWeT Lab., Universidad Politécnica de Madrid
 
-# This file is part of CKAN Store Updater Extension.
+# This file is part of CKAN Store Publisher Extension.
 
-# CKAN Store Updater Extension is free software: you can redistribute it and/or
+# CKAN Store Publisher Extension is free software: you can redistribute it and/or
 # modify it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-# CKAN Store Updater Extension is distributed in the hope that it will be useful,
+# CKAN Store Publisher Extension is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Affero General Public License for more details.
 
 # You should have received a copy of the GNU Affero General Public License
-# along with CKAN Store Updater Extension.  If not, see <http://www.gnu.org/licenses/>.
+# along with CKAN Store Publisher Extension.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
 import ckan.lib.base as base
@@ -43,10 +43,9 @@ with open(filepath, 'rb') as f:
 class PublishControllerUI(base.BaseController):
 
     def __init__(self, name=None):
-        log.debug('Init StoreUpdater plugin')
         self.site_url = config.get('ckan.site_url')
-        self.store_url = config.get('ckan.storeupdater.store_url')
-        self.repository = config.get('ckan.storeupdater.repository', 'Local')
+        self.store_url = config.get('ckan.storepublisher.store_url')
+        self.repository = config.get('ckan.storepublisher.repository')
 
     def _get_resource(self, data):
         resource = {}

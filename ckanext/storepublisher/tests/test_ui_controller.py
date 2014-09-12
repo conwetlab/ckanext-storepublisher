@@ -2,22 +2,22 @@
 
 # Copyright (c) 2014 CoNWeT Lab., Universidad Politécnica de Madrid
 
-# This file is part of CKAN Store Updater Extension.
+# This file is part of CKAN Store Publisher Extension.
 
-# CKAN Store Updater Extension is free software: you can redistribute it and/or
+# CKAN Store Publisher Extension is free software: you can redistribute it and/or
 # modify it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-# CKAN Store Updater Extension is distributed in the hope that it will be useful,
+# CKAN Store Publisher Extension is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Affero General Public License for more details.
 
 # You should have received a copy of the GNU Affero General Public License
-# along with CKAN Store Updater Extension.  If not, see <http://www.gnu.org/licenses/>.
+# along with CKAN Store Publisher Extension.  If not, see <http://www.gnu.org/licenses/>.
 
-import ckanext.storeupdater.controllers.ui_controller as controller
+import ckanext.storepublisher.controllers.ui_controller as controller
 import base64
 import json
 import os
@@ -81,7 +81,8 @@ class UIControllerTest(unittest.TestCase):
         self._config = controller.config
         controller.config = {
             'ckan.site_url': 'https://localhost:8474',
-            'ckan.storeupdater.store_url': 'https://store.example.com:7458'
+            'ckan.storepublisher.store_url': 'https://store.example.com:7458',
+            'ckan.storepublisher.repository': 'Example Repo'
         }
 
         # Create the plugin
@@ -145,7 +146,7 @@ class UIControllerTest(unittest.TestCase):
         self.assertEquals(OFFERING_INFO_BASE['description'], offering['offering_info']['description'])
         self.assertEquals(OFFERING_INFO_BASE['license_title'], offering['offering_info']['legal']['title'])
         self.assertEquals(OFFERING_INFO_BASE['license_description'], offering['offering_info']['legal']['text'])
-        self.assertEquals('Local', offering['repository'])
+        self.assertEquals(controller.config['ckan.storepublisher.repository'], offering['repository'])
         self.assertEquals(OFFERING_INFO_BASE['is_open'], offering['open'])
 
         # Check price
@@ -304,12 +305,12 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._rollback(resource_created, offering_created, OFFERING_INFO_BASE)
 
         if resource_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (controller.config['ckan.storeupdater.store_url'],
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (controller.config['ckan.storepublisher.store_url'],
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
             expected_number_calls += 1
 
         if offering_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (controller.config['ckan.storeupdater.store_url'],
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (controller.config['ckan.storepublisher.store_url'],
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
             expected_number_calls += 1
 
@@ -358,7 +359,7 @@ class UIControllerTest(unittest.TestCase):
                 self.assertEquals(data, call[0][3])
 
             call_list = self.instanceController._make_request.call_args_list
-            store_url = controller.config['ckan.storeupdater.store_url']
+            store_url = controller.config['ckan.storepublisher.store_url']
             base_url = '%s/api/offering' % store_url
             headers = {'Content-Type': 'application/json'}
             pkg_name = OFFERING_INFO_BASE['name']
@@ -504,7 +505,7 @@ class UIControllerTest(unittest.TestCase):
                     # If 'update_acquire_url' is in the request content and 'create_offering' does not fail,
                     # the package_update function should be called.
                     if 'update_acquire_url' in post_content:
-                        store_url = controller.config['ckan.storeupdater.store_url']
+                        store_url = controller.config['ckan.storepublisher.store_url']
                         expected_ds = current_package.copy()
                         expected_name = post_content['name'].replace(' ', '%20')
                         expected_ds['acquire_url'] = '%s/offering/%s/%s/%s' % (store_url, user, expected_name, post_content['version'])
