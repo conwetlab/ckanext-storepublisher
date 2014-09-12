@@ -192,7 +192,7 @@ class PublishControllerUI(base.BaseController):
         # Check that the user is able to update the dataset.
         # Otherwise, he/she won't be able to publish the offering
         try:
-            tk.check_access('package_update', context)
+            tk.check_access('package_update', context, {'id': id})
         except tk.NotAuthorized:
             log.warn('User %s not authorized to publish %s in the FIWARE Store' % (c.user, id))
             tk.abort(401, tk._('User %s not authorized to publish %s') % (c.user, id))
@@ -218,6 +218,7 @@ class PublishControllerUI(base.BaseController):
             data['license_description'] = request.POST.get('license_description', '')
             data['version'] = request.POST.get('version', '')
             data['is_open'] = 'open' in request.POST
+            data['update_acquire_url'] = 'update_acquire_url' in request.POST
 
             # Get tags
             # ''.split(',') ==> ['']
@@ -244,6 +245,10 @@ class PublishControllerUI(base.BaseController):
                     log.warn('%r is not a valid price' % price)
                     c.errors['Price'] = ['"%s" is not a valid number' % price]
 
+            # Set offering. In this way, we recover the values introduced previosly
+            # and the user does not have to introduce them again
+            c.offering = data
+
             # Check that all the required fields are provided
             required_fields = ['pkg_id', 'name', 'version']
             for field in required_fields:
@@ -266,8 +271,7 @@ class PublishControllerUI(base.BaseController):
                 result = self.create_offering(data)
                 if result is True:
                     # Update acquire URL (only if the user want to)
-                    update_acquire_url = 'update_acquire_url' in request.POST
-                    if update_acquire_url and 'acquire_url' in dataset:
+                    if data['update_acquire_url'] and 'acquire_url' in dataset:
                         user_nickname = tk.c.user
                         # Offering names can include spaces, but URLs should not include them
                         name = data['name'].replace(' ', '%20')
@@ -278,8 +282,8 @@ class PublishControllerUI(base.BaseController):
                     helpers.flash_success(tk._('Offering %s published correctly' % data['name']))
 
                     # FIX: When a redirection is performed, the success message is not shown
-                    #response.status_int = 302
-                    #response.location = '/dataset/%s' % id
+                    # response.status_int = 302
+                    # response.location = '/dataset/%s' % id
                 else:
                     c.errors['Store'] = [result]
 

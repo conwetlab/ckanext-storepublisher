@@ -3,6 +3,16 @@
 {% resource 'storepublisher/image_upload.js' %}
 {% set private = data.get('private') %}
 
+{% set name = offering['name'] if offering else data.title %}
+{% set description = offering['description'] if offering else data.notes %}
+{% set tags = ','.join(offering['tags']) if offering else data.tag_string %}
+{% set version =  offering['version'] if offering else '' %}
+{% set license_title = offering['license_title'] if offering else data.get('license_title','') %}
+{% set license_description = offering['license_description'] if offering else '' %}
+{% set price = offering['price'] if offering else '' %}
+{% set is_open = offering['is_open'] if offering else True %}
+{% set update_acquire_url = offering['update_acquire_url'] if offering else True %}
+
 {# This provides a full page that renders a form for publishing a dataset. It can
 then itself be extended to add/remove blocks of functionality. #}
 <form class="dataset-form form-horizontal" method="post" data-module="basic-form" action enctype="multipart/form-data">
@@ -23,28 +33,28 @@ then itself be extended to add/remove blocks of functionality. #}
   <input type="hidden" name="pkg_id" value="{{ data.id }}" />
 
   {% block offering_title %}
-    {{ form.input('name', id='field-name', label=_('Name'), placeholder=_('eg. The title of the offering'), value=data.title, error=errors['name'], classes=['control-full', 'control-large'], is_required=true) }}
+    {{ form.input('name', id='field-name', label=_('Name'), placeholder=_('eg. The title of the offering'), value=name, error=errors['name'], classes=['control-full', 'control-large'], is_required=true) }}
   {% endblock %}
 
   {% block offering_description %}
-    {{ form.textarea('description', id='field-description', label=_('Description'), placeholder=_('eg. Offering description'), value=data.notes, error=errors.notes) }}
+    {{ form.textarea('description', id='field-description', label=_('Description'), placeholder=_('eg. Offering description'), value=description, error=errors.notes) }}
   {% endblock %}
 
   {% block offering_tags %}
     {% set tag_attrs = {'data-module': 'autocomplete', 'data-module-tags': '', 'data-module-source': '/api/2/util/tag/autocomplete?incomplete=?'} %}
-    {{ form.input('tag_string', id='field-tags', label=_('Tags'), placeholder=_('eg. economy, mental health, government'), value=data.tag_string, error=errors.tags, classes=['control-full'], attrs=tag_attrs) }}
+    {{ form.input('tag_string', id='field-tags', label=_('Tags'), placeholder=_('eg. economy, mental health, government'), value=tags, error=errors.tags, classes=['control-full'], attrs=tag_attrs) }}
   {% endblock %}
 
   {% block offering_version %}
-    {{ form.input('version', id='field-version', label=_('Version'), placeholder=_('eg. 1.0, 2.3.4'), classes=['control-full', 'control-medium'], is_required=true) }}
+    {{ form.input('version', id='field-version', label=_('Version'), placeholder=_('eg. 1.0, 2.3.4'), value=version, classes=['control-full', 'control-medium'], is_required=true) }}
   {% endblock %}
 
   {% block offering_license_title %}
-    {{ form.input('license_title', id='field-license_title', label=_('License'), placeholder=_('eg. Creative Commons Attribution'), value=data.get('license_title',''), classes=['control-full', 'control-medium']) }}
+    {{ form.input('license_title', id='field-license_title', label=_('License'), placeholder=_('eg. Creative Commons Attribution'), value=license_title, classes=['control-full', 'control-medium']) }}
   {% endblock %}
 
   {% block offering_license_description %}
-    {{ form.textarea('license_description', id='field-license_description', label=_('License Description'), placeholder=_('License description. You can find license definitions at opendefinition.org'), error=errors.notes) }}
+    {{ form.textarea('license_description', id='field-license_description', label=_('License Description'), placeholder=_('License description. You can find license definitions at opendefinition.org'), value=license_description, error=errors.notes) }}
   {% endblock %}
 
   {% block image %}
@@ -72,7 +82,7 @@ then itself be extended to add/remove blocks of functionality. #}
       <div class="control-group ">
         <div class="controls">
           <label class="checkbox" for="field-open">
-            <input id="field-open" type="checkbox" name="open" value="" checked="">
+            <input id="field-open" type="checkbox" name="open" value="" {{ "checked " if is_open }}>
             {% trans %}Open Offering{% endtrans %}
             <span class="info-block info-inline" style="font-weight: normal;">
               <i class="icon-info-sign"></i>
@@ -84,14 +94,12 @@ then itself be extended to add/remove blocks of functionality. #}
         </div>
       </div>
     {% endblock %}
-  {% endif %}
-
-  {% if private %}
+  {% else %}
     {% block offering_price %}
       <div class="control-group control-small">
         <label class="control-label" for="field-price">{% trans %}Price{% endtrans %}</label>
         <div class="controls ">
-          <input id="field-price" type="text" name="price" value="" placeholder="eg. 0, 28.99, 3.50, 9.00">
+          <input id="field-price" type="text" name="price" value="{{ price }}" placeholder="eg. 0, 28.99, 3.50, 9.00">
           <span class="info-block info-inline">
             <i class="icon-info-sign"></i>
             {% trans %}
@@ -108,7 +116,7 @@ then itself be extended to add/remove blocks of functionality. #}
       <div class="control-group">
         <div class="controls">
           <label class="checkbox" for="field-update_acquire_url">
-            <input id="field-update_acquire_url" type="checkbox" name="update_acquire_url" value="" checked="">
+            <input id="field-update_acquire_url" type="checkbox" name="update_acquire_url" value="" {{ "checked " if update_acquire_url }}>
             {% trans %}Update Acquire URL{% endtrans %}  
             <span class="info-block info-inline" style="font-weight: normal;">
               <i class="icon-info-sign"></i>

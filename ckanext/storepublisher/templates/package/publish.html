@@ -21,5 +21,5 @@
 {% endblock %}
 
 {% block primary_content_inner %}
-    {% snippet "package/snippets/storepublisher_publish_form.html", data=c.pkg_dict, errors=c.errors %}
+    {% snippet "package/snippets/storepublisher_publish_form.html", data=c.pkg_dict, errors=c.errors, offering=c.offering %}
 {% endblock %}

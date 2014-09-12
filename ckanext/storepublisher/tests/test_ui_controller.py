@@ -436,7 +436,7 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController.publish(pkg_id)
 
         # Check that the check_access function has been called
-        controller.plugins.toolkit.check_access.assert_called_once_with('package_update', expected_context)
+        controller.plugins.toolkit.check_access.assert_called_once_with('package_update', expected_context, {'id': pkg_id})
 
         # Check that the abort function is called properly
         if not allowed:
@@ -495,7 +495,8 @@ class UIControllerTest(unittest.TestCase):
                     'is_open': 'open' in post_content,
                     'tags': tags,
                     'price': real_price,
-                    'image_base64': expected_image
+                    'image_base64': expected_image,
+                    'update_acquire_url': 'update_acquire_url' in post_content
                 }
 
                 self.instanceController.create_offering.assert_called_once_with(expected_data)
