@@ -1,0 +1,6 @@
+{% ckan_extends %}
+
+{% block content_primary_nav %}
+  {{ super() }}
+  {{ h.build_nav_icon('dataset_publish', _('Publish'), id=pkg.name) }}
+{% endblock %}
