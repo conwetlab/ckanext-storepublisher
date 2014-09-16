@@ -270,16 +270,20 @@ class PublishControllerUI(base.BaseController):
 
                 result = self.create_offering(data)
                 if result is True:
+
+                    user_nickname = tk.c.user
+                    # Offering names can include spaces, but URLs should not include them
+                    name = data['name'].replace(' ', '%20')
+                    offering_url = '%s/offering/%s/%s/%s' % (self.store_url, user_nickname, name, data['version'])
+                    
                     # Update acquire URL (only if the user want to)
                     if data['update_acquire_url'] and 'acquire_url' in dataset:
-                        user_nickname = tk.c.user
-                        # Offering names can include spaces, but URLs should not include them
-                        name = data['name'].replace(' ', '%20')
-                        dataset['acquire_url'] = '%s/offering/%s/%s/%s' % (self.store_url, user_nickname, name, data['version'])
+                        dataset['acquire_url'] = offering_url
                         tk.get_action('package_update')(context, dataset)
                         log.info('Acquire URL updated correctly')
 
-                    helpers.flash_success(tk._('Offering %s published correctly' % data['name']))
+                    helpers.flash_success(tk._('Offering <a href="%s" target="_blank">%s</a> published correctly.' %
+                                               (offering_url, data['name'])), allow_html=True)
 
                     # FIX: When a redirection is performed, the success message is not shown
                     # response.status_int = 302

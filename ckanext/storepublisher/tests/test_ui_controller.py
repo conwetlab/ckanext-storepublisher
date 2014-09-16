@@ -502,14 +502,19 @@ class UIControllerTest(unittest.TestCase):
                 self.instanceController.create_offering.assert_called_once_with(expected_data)
 
                 if create_offering_res is True:
-                    controller.helpers.flash_success.assert_called_once_with('Offering %s published correctly' % post_content['name'])
+
+                    store_url = controller.config['ckan.storepublisher.store_url']
+                    offering_name = post_content['name'].replace(' ', '%20')
+                    offering_url = '%s/offering/%s/%s/%s' % (store_url, user, offering_name, post_content['version'])
+
+                    controller.helpers.flash_success.assert_called_once_with('Offering <a href="%s" target="_blank">' % offering_url +
+                                                                             '%s</a> published correctly.' % post_content['name'],
+                                                                             allow_html=True)
                     # If 'update_acquire_url' is in the request content and 'create_offering' does not fail,
                     # the package_update function should be called.
                     if 'update_acquire_url' in post_content:
-                        store_url = controller.config['ckan.storepublisher.store_url']
                         expected_ds = current_package.copy()
-                        expected_name = post_content['name'].replace(' ', '%20')
-                        expected_ds['acquire_url'] = '%s/offering/%s/%s/%s' % (store_url, user, expected_name, post_content['version'])
+                        expected_ds['acquire_url'] = offering_url
                         package_update.assert_called_once_with(expected_context, expected_ds)
                 else:
                     errors['Store'] = [create_offering_res]
