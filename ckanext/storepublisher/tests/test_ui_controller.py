@@ -142,7 +142,7 @@ class UIControllerTest(unittest.TestCase):
         self.assertEquals(OFFERING_INFO_BASE['version'], resource['version'])
         self.assertEquals('dataset', resource['content_type'])
         self.assertEquals(OFFERING_INFO_BASE['is_open'], resource['open'])
-        self.assertEquals('%s/dataset/%s' % (controller.config['ckan.site_url'], OFFERING_INFO_BASE['pkg_id']), resource['link'])
+        self.assertEquals('%s/dataset/%s' % (BASE_SITE_URL, OFFERING_INFO_BASE['pkg_id']), resource['link'])
 
     @parameterized.expand([
         (0,),
@@ -325,12 +325,12 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._rollback(resource_created, offering_created, OFFERING_INFO_BASE)
 
         if resource_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (controller.config['ckan.storepublisher.store_url'],
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (BASE_STORE_URL,
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
             expected_number_calls += 1
 
         if offering_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (controller.config['ckan.storepublisher.store_url'],
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (BASE_STORE_URL,
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
             expected_number_calls += 1
 
@@ -379,8 +379,7 @@ class UIControllerTest(unittest.TestCase):
                 self.assertEquals(data, call[0][3])
 
             call_list = self.instanceController._make_request.call_args_list
-            store_url = controller.config['ckan.storepublisher.store_url']
-            base_url = '%s/api/offering' % store_url
+            base_url = '%s/api/offering' % BASE_STORE_URL
             headers = {'Content-Type': 'application/json'}
             pkg_name = OFFERING_INFO_BASE['name']
             version = OFFERING_INFO_BASE['version']
@@ -523,9 +522,8 @@ class UIControllerTest(unittest.TestCase):
 
                 if create_offering_res is True:
 
-                    store_url = controller.config['ckan.storepublisher.store_url']
                     offering_name = post_content['name'].replace(' ', '%20')
-                    offering_url = '%s/offering/%s/%s/%s' % (store_url, user, offering_name, post_content['version'])
+                    offering_url = '%s/offering/%s/%s/%s' % (BASE_STORE_URL, user, offering_name, post_content['version'])
 
                     controller.helpers.flash_success.assert_called_once_with('Offering <a href="%s" target="_blank">' % offering_url +
                                                                              '%s</a> published correctly.' % post_content['name'],
