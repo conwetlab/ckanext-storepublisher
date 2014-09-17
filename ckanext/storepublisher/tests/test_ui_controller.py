@@ -42,6 +42,8 @@ OFFERING_INFO_BASE = {
 EXCEPTION_MSG = 'Exception Message'
 MISSING_ERROR = 'This filed is required to publish the offering'
 CONNECTION_ERROR_MSG = 'It was impossible to connect with the Store'
+BASE_SITE_URL = 'https://localhost:8474'
+BASE_STORE_URL = 'https://store.example.com:7458'
 
 # Need to be defined here, since it will be used as tests parameter
 ConnectionError = controller.requests.ConnectionError
@@ -80,8 +82,8 @@ class UIControllerTest(unittest.TestCase):
 
         self._config = controller.config
         controller.config = {
-            'ckan.site_url': 'https://localhost:8474',
-            'ckan.storepublisher.store_url': 'https://store.example.com:7458',
+            'ckan.site_url': BASE_SITE_URL,
+            'ckan.storepublisher.store_url': BASE_STORE_URL,
             'ckan.storepublisher.repository': 'Example Repo'
         }
 
@@ -112,6 +114,24 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._get_resource = self._get_resource
         self.instanceController._get_offering = self._get_offering
         self.instanceController._get_tags = self._get_tags
+
+    @parameterized.expand([
+        ('%s' % BASE_SITE_URL,  '%s' % BASE_STORE_URL),
+        ('%s/' % BASE_SITE_URL, '%s' % BASE_STORE_URL),
+        ('%s' % BASE_SITE_URL,  '%s/' % BASE_STORE_URL),
+        ('%s/' % BASE_SITE_URL, '%s/' % BASE_STORE_URL)
+    ])
+    def test_init(self, site_url, store_url):
+
+        controller.config = {
+            'ckan.site_url': site_url,
+            'ckan.storepublisher.store_url': store_url,
+            'ckan.storepublisher.repository': 'Example Repo'
+        }
+
+        instance = controller.PublishControllerUI()
+        self.assertEquals(BASE_SITE_URL, instance.site_url)
+        self.assertEquals(BASE_STORE_URL, instance.store_url)
 
     def test_get_resource(self):
         resource = self.instanceController._get_resource(OFFERING_INFO_BASE)

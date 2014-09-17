@@ -43,9 +43,14 @@ with open(filepath, 'rb') as f:
 class PublishControllerUI(base.BaseController):
 
     def __init__(self, name=None):
-        self.site_url = config.get('ckan.site_url')
-        self.store_url = config.get('ckan.storepublisher.store_url')
+        self.site_url = self._get_url('ckan.site_url')
+        self.store_url = self._get_url('ckan.storepublisher.store_url')
         self.repository = config.get('ckan.storepublisher.repository')
+
+    def _get_url(self, config_property):
+        url = config.get(config_property)
+        url = url[:-1] if url.endswith('/') else url
+        return url
 
     def _get_resource(self, data):
         resource = {}
