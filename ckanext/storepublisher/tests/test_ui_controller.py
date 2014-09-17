@@ -42,6 +42,8 @@ OFFERING_INFO_BASE = {
 EXCEPTION_MSG = 'Exception Message'
 MISSING_ERROR = 'This filed is required to publish the offering'
 CONNECTION_ERROR_MSG = 'It was impossible to connect with the Store'
+BASE_SITE_URL = 'https://localhost:8474'
+BASE_STORE_URL = 'https://store.example.com:7458'
 
 # Need to be defined here, since it will be used as tests parameter
 ConnectionError = controller.requests.ConnectionError
@@ -80,8 +82,8 @@ class UIControllerTest(unittest.TestCase):
 
         self._config = controller.config
         controller.config = {
-            'ckan.site_url': 'https://localhost:8474',
-            'ckan.storepublisher.store_url': 'https://store.example.com:7458',
+            'ckan.site_url': BASE_SITE_URL,
+            'ckan.storepublisher.store_url': BASE_STORE_URL,
             'ckan.storepublisher.repository': 'Example Repo'
         }
 
@@ -113,6 +115,24 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._get_offering = self._get_offering
         self.instanceController._get_tags = self._get_tags
 
+    @parameterized.expand([
+        ('%s' % BASE_SITE_URL,  '%s' % BASE_STORE_URL),
+        ('%s/' % BASE_SITE_URL, '%s' % BASE_STORE_URL),
+        ('%s' % BASE_SITE_URL,  '%s/' % BASE_STORE_URL),
+        ('%s/' % BASE_SITE_URL, '%s/' % BASE_STORE_URL)
+    ])
+    def test_init(self, site_url, store_url):
+
+        controller.config = {
+            'ckan.site_url': site_url,
+            'ckan.storepublisher.store_url': store_url,
+            'ckan.storepublisher.repository': 'Example Repo'
+        }
+
+        instance = controller.PublishControllerUI()
+        self.assertEquals(BASE_SITE_URL, instance.site_url)
+        self.assertEquals(BASE_STORE_URL, instance.store_url)
+
     def test_get_resource(self):
         resource = self.instanceController._get_resource(OFFERING_INFO_BASE)
 
@@ -122,7 +142,7 @@ class UIControllerTest(unittest.TestCase):
         self.assertEquals(OFFERING_INFO_BASE['version'], resource['version'])
         self.assertEquals('dataset', resource['content_type'])
         self.assertEquals(OFFERING_INFO_BASE['is_open'], resource['open'])
-        self.assertEquals('%s/dataset/%s' % (controller.config['ckan.site_url'], OFFERING_INFO_BASE['pkg_id']), resource['link'])
+        self.assertEquals('%s/dataset/%s' % (BASE_SITE_URL, OFFERING_INFO_BASE['pkg_id']), resource['link'])
 
     @parameterized.expand([
         (0,),
@@ -305,12 +325,12 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._rollback(resource_created, offering_created, OFFERING_INFO_BASE)
 
         if resource_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (controller.config['ckan.storepublisher.store_url'],
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (BASE_STORE_URL,
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
             expected_number_calls += 1
 
         if offering_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (controller.config['ckan.storepublisher.store_url'],
+            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (BASE_STORE_URL,
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
             expected_number_calls += 1
 
@@ -359,8 +379,7 @@ class UIControllerTest(unittest.TestCase):
                 self.assertEquals(data, call[0][3])
 
             call_list = self.instanceController._make_request.call_args_list
-            store_url = controller.config['ckan.storepublisher.store_url']
-            base_url = '%s/api/offering' % store_url
+            base_url = '%s/api/offering' % BASE_STORE_URL
             headers = {'Content-Type': 'application/json'}
             pkg_name = OFFERING_INFO_BASE['name']
             version = OFFERING_INFO_BASE['version']
@@ -502,14 +521,18 @@ class UIControllerTest(unittest.TestCase):
                 self.instanceController.create_offering.assert_called_once_with(expected_data)
 
                 if create_offering_res is True:
-                    controller.helpers.flash_success.assert_called_once_with('Offering %s published correctly' % post_content['name'])
+
+                    offering_name = post_content['name'].replace(' ', '%20')
+                    offering_url = '%s/offering/%s/%s/%s' % (BASE_STORE_URL, user, offering_name, post_content['version'])
+
+                    controller.helpers.flash_success.assert_called_once_with('Offering <a href="%s" target="_blank">' % offering_url +
+                                                                             '%s</a> published correctly.' % post_content['name'],
+                                                                             allow_html=True)
                     # If 'update_acquire_url' is in the request content and 'create_offering' does not fail,
                     # the package_update function should be called.
                     if 'update_acquire_url' in post_content:
-                        store_url = controller.config['ckan.storepublisher.store_url']
                         expected_ds = current_package.copy()
-                        expected_name = post_content['name'].replace(' ', '%20')
-                        expected_ds['acquire_url'] = '%s/offering/%s/%s/%s' % (store_url, user, expected_name, post_content['version'])
+                        expected_ds['acquire_url'] = offering_url
                         package_update.assert_called_once_with(expected_context, expected_ds)
                 else:
                     errors['Store'] = [create_offering_res]
