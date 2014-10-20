@@ -111,26 +111,6 @@ then itself be extended to add/remove blocks of functionality. #}
     {% endblock %}
   {% endif %}
 
-  {% if private and 'acquire_url' in data %}
-    {% block offering_update_acquire_url %}
-      <div class="control-group">
-        <div class="controls">
-          <label class="checkbox" for="field-update_acquire_url">
-            <input id="field-update_acquire_url" type="checkbox" name="update_acquire_url" value="" {{ "checked " if update_acquire_url }}>
-            {% trans %}Update Acquire URL{% endtrans %}  
-            <span class="info-block info-inline" style="font-weight: normal;">
-              <i class="icon-info-sign"></i>
-              {% trans %}
-                This dataset has an Acquire URL attached. If you enable this checkbox, this URL will be updated with the URL of the created offering.
-              {% endtrans %}
-            </span>        
-          </label>
-        </div>
-      </div>
-    {% endblock %}
-  {% endif %}
-
-
   {% block form_actions %}
     <div class="form-actions">
       <button class="btn btn-primary" type="submit" name="save">{% block save_button_text %}{{ _('Publish Offering') }}{% endblock %}</button>
