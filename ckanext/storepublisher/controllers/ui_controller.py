@@ -109,24 +109,25 @@ class PublishControllerUI(base.BaseController):
 
     def _make_request(self, method, url, headers={}, data=None):
 
-        # Include access token in the request
-        usertoken = plugins.toolkit.c.usertoken
-        final_headers = headers.copy()
-        final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
+        def _get_headers_and_make_request(method, url, headers, data):
+            # Include access token in the request
+            usertoken = plugins.toolkit.c.usertoken
+            final_headers = headers.copy()
+            final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
 
-        req_method = getattr(requests, method)
-        req = req_method(url, headers=final_headers, data=data)
+            req_method = getattr(requests, method)
+            req = req_method(url, headers=final_headers, data=data)
+
+            return req
+
+        req = _get_headers_and_make_request(method, url, headers, data)
 
         # When a 401 status code is got, we should refresh the token and retry the request.
         if req.status_code == 401:
             log.info('%s(%s): returned 401. Has the token expired? Retrieving new token and retrying...' % (method, url))
             plugins.toolkit.c.usertoken_refresh()
             # Update the header 'Authorization'
-            usertoken = plugins.toolkit.c.usertoken
-            final_headers = headers.copy()
-            final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
-            # Retry the request
-            req = req_method(url, headers=final_headers, data=data)
+            req = _get_headers_and_make_request(method, url, headers, data)
 
         log.info('%s(%s): %s %s' % (method, url, req.status_code, req.text))
 
@@ -163,7 +164,7 @@ class PublishControllerUI(base.BaseController):
         else:
             return None
 
-    def _create_resource(self, dataset, offering_info):
+    def _create_resource(self, dataset):
         # Set needed variables
         c = plugins.toolkit.c
         tk = plugins.toolkit
@@ -212,7 +213,7 @@ class PublishControllerUI(base.BaseController):
             # Get the resource. If it does not exist, it will be created
             resource = self._get_existing_resource(dataset)
             if resource is None:
-                resource = self._create_resource(dataset, offering_info)
+                resource = self._create_resource(dataset)
 
             offering = self._get_offering(offering_info, resource)
             tags = self._get_tags(offering_info)
