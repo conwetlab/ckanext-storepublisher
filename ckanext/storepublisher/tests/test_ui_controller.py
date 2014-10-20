@@ -29,7 +29,7 @@ from nose_parameterized import parameterized
 
 DATASET = {
     'id': 'example_id',
-    'title': 'Dataset A',
+    'title': u'Dataset A',
     'notes': 'Dataset description. This can be a very long field and can include markdown syntax'
 }
 
@@ -140,11 +140,17 @@ class UIControllerTest(unittest.TestCase):
         self.assertEquals(BASE_SITE_URL, instance.site_url)
         self.assertEquals(BASE_STORE_URL, instance.store_url)
 
-    def test_get_resource(self):
-        resource = self.instanceController._get_resource(DATASET)
+    @parameterized.expand([
+        (DATASET['title'], DATASET['title']),
+        (u'ábcdé! fgh?=monitor', 'abcde fgh monitor')
+    ])
+    def test_get_resource(self, initial_name, expected_name):
+        dataset = DATASET.copy()
+        dataset['title'] = initial_name
+        resource = self.instanceController._get_resource(dataset)
 
         # Check the values
-        self.assertEquals('Dataset %s - ID %s' % (DATASET['title'], DATASET['id']), resource['name'])
+        self.assertEquals('Dataset %s - ID %s' % (expected_name, DATASET['id']), resource['name'])
         self.assertEquals(DATASET['notes'], resource['description'])
         self.assertEquals('1.0', resource['version'])
         self.assertEquals('dataset', resource['content_type'])
@@ -353,7 +359,11 @@ class UIControllerTest(unittest.TestCase):
         # Call the function and check the result
         self.assertEquals(expected_resource, self.instanceController._get_existing_resource(DATASET))
 
-    def test_create_resource(self):
+    @parameterized.expand([
+        (True,),
+        (False,)
+    ])
+    def test_create_resource(self, private):
         c = controller.plugins.toolkit.c
         c.user = 'provider name'
         resource = {
@@ -375,6 +385,7 @@ class UIControllerTest(unittest.TestCase):
         controller.plugins.toolkit.get_action = MagicMock(return_value=package_update)
 
         dataset = DATASET.copy()
+        dataset['private'] = private
         expected_dataset = dataset.copy()
         new_name = resource['name'].replace(' ', '%20')
         expected_dataset['acquire_url'] = '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, resource['provider'], new_name, resource['version'])
@@ -388,10 +399,13 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._make_request.assert_called_once_with('post', '%s/api/offering/resources' % BASE_STORE_URL, headers, json.dumps(resource))
 
         # Check that the acquire URL has been updated
-        context = {'model': controller.model, 'session': controller.model.Session,
-                   'user': c.user or c.author, 'auth_user_obj': c.userobj,
-                   }
-        package_update.assert_called_once_with(context, expected_dataset)
+        if private:
+            context = {'model': controller.model, 'session': controller.model.Session,
+                       'user': c.user or c.author, 'auth_user_obj': c.userobj,
+                       }
+            package_update.assert_called_once_with(context, expected_dataset)
+        else:
+            self.assertEquals(0, package_update.call_count)
 
     @parameterized.expand([
         (True,),

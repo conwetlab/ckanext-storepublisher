@@ -30,6 +30,7 @@ import requests
 
 from ckan.common import request
 from pylons import config
+from unicodedata import normalize
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,19 @@ filepath = os.path.join(__dir__, '../assets/logo-ckan.png')
 
 with open(filepath, 'rb') as f:
     LOGO_CKAN_B64 = base64.b64encode(f.read())
+
+
+def slugify(text, delim=' '):
+    """Generates an slightly worse ASCII-only slug."""
+    _punct_re = re.compile(r'[\t !"#$%&\'()*/<=>?@\[\\\]`{|},.:]+')
+    result = []
+    for word in _punct_re.split(text):
+        word = normalize('NFKD', word).encode('ascii', 'ignore')
+        word = word.decode('utf-8')
+        if word:
+            result.append(word)
+
+    return delim.join(result)
 
 
 class PublishControllerUI(base.BaseController):
@@ -57,7 +71,7 @@ class PublishControllerUI(base.BaseController):
 
     def _get_resource(self, dataset):
         resource = {}
-        resource['name'] = 'Dataset %s - ID %s' % (dataset['title'], dataset['id'])
+        resource['name'] = slugify('Dataset %s - ID %s' % (dataset['title'], dataset['id']))
         resource['description'] = dataset['notes']
         resource['version'] = '1.0'
         resource['content_type'] = 'dataset'
@@ -178,12 +192,13 @@ class PublishControllerUI(base.BaseController):
         self._make_request('post', '%s/api/offering/resources' % self.store_url, headers, json.dumps(resource))
 
         # Update the Acquire URL automatically
-        user_nickname = c.user
-        name = resource['name'].replace(' ', '%20')
-        resource_url = '%s/search/resource/%s/%s/%s' % (self.store_url, user_nickname, name, resource['version'])
-        dataset['acquire_url'] = resource_url
-        tk.get_action('package_update')(context, dataset)
-        log.info('Acquire URL updated correctly to %s' % resource_url)
+        if dataset['private']:
+            user_nickname = c.user
+            name = resource['name'].replace(' ', '%20')
+            resource_url = '%s/search/resource/%s/%s/%s' % (self.store_url, user_nickname, name, resource['version'])
+            dataset['acquire_url'] = resource_url
+            tk.get_action('package_update')(context, dataset)
+            log.info('Acquire URL updated correctly to %s' % resource_url)
 
         # Return the resource
         return self._generate_resource_info(resource)
