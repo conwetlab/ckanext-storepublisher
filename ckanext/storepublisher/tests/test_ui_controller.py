@@ -27,6 +27,13 @@ from mock import MagicMock
 from nose_parameterized import parameterized
 
 
+DATASET = {
+    'id': 'example_id',
+    'title': u'Dataset A',
+    'notes': 'Dataset description. This can be a very long field and can include markdown syntax'
+}
+
+
 OFFERING_INFO_BASE = {
     'pkg_id': 'identifier',
     'name': 'Offering 1',
@@ -133,16 +140,22 @@ class UIControllerTest(unittest.TestCase):
         self.assertEquals(BASE_SITE_URL, instance.site_url)
         self.assertEquals(BASE_STORE_URL, instance.store_url)
 
-    def test_get_resource(self):
-        resource = self.instanceController._get_resource(OFFERING_INFO_BASE)
+    @parameterized.expand([
+        (DATASET['title'], DATASET['title']),
+        (u'ábcdé! fgh?=monitor', 'abcde fgh monitor')
+    ])
+    def test_get_resource(self, initial_name, expected_name):
+        dataset = DATASET.copy()
+        dataset['title'] = initial_name
+        resource = self.instanceController._get_resource(dataset)
 
         # Check the values
-        self.assertEquals(OFFERING_INFO_BASE['name'], resource['name'])
-        self.assertEquals(OFFERING_INFO_BASE['description'], resource['description'])
-        self.assertEquals(OFFERING_INFO_BASE['version'], resource['version'])
+        self.assertEquals('Dataset %s - ID %s' % (expected_name, DATASET['id']), resource['name'])
+        self.assertEquals(DATASET['notes'], resource['description'])
+        self.assertEquals('1.0', resource['version'])
         self.assertEquals('dataset', resource['content_type'])
-        self.assertEquals(OFFERING_INFO_BASE['is_open'], resource['open'])
-        self.assertEquals('%s/dataset/%s' % (BASE_SITE_URL, OFFERING_INFO_BASE['pkg_id']), resource['link'])
+        self.assertEquals(True, resource['open'])
+        self.assertEquals('%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), resource['link'])
 
     @parameterized.expand([
         (0,),
@@ -153,7 +166,8 @@ class UIControllerTest(unittest.TestCase):
         controller.plugins.toolkit.c.user = user_nickname
         offering_info = OFFERING_INFO_BASE.copy()
         offering_info['price'] = price
-        offering = self.instanceController._get_offering(offering_info)
+        resource = {'provider': 'test', 'name': 'resource_name', 'version': '1.0'}
+        offering = self.instanceController._get_offering(offering_info, resource)
 
         # Check the values
         self.assertEquals(OFFERING_INFO_BASE['name'], offering['name'])
@@ -161,7 +175,7 @@ class UIControllerTest(unittest.TestCase):
         self.assertEquals('ckan.png', offering['image']['name'])
         self.assertEquals(OFFERING_INFO_BASE['image_base64'], offering['image']['data'])
         self.assertEquals([], offering['related_images'])
-        self.assertEquals([{'provider': user_nickname, 'name': OFFERING_INFO_BASE['name'], 'version': OFFERING_INFO_BASE['version']}], offering['resources'])
+        self.assertEquals([resource], offering['resources'])
         self.assertEquals([], offering['applications'])
         self.assertEquals(OFFERING_INFO_BASE['description'], offering['offering_info']['description'])
         self.assertEquals(OFFERING_INFO_BASE['license_title'], offering['offering_info']['legal']['title'])
@@ -310,66 +324,185 @@ class UIControllerTest(unittest.TestCase):
             self.instanceController._make_request(method, url, headers, data)
 
     @parameterized.expand([
-        (True,  True),
-        (True,  False),
-        (False, True),
-        (False, False)
+        (True, '',                                                                                        'provider_name', 'testResource', '1.0', True),
+        (True,  '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, 'provider name', 'testResource', '1.0'), 'provider name', 'testResource', '1.0', False),
+        (False, '',                                                                                       'provider_name', 'testResource', '1.0', False),
+        (False, '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, 'provider name', 'testResource', '1.0'), 'provider name', 'testResource', '1.0', False),
     ])
-    def test_rollback(self, resource_created, offering_created):
+    def test_update_acquire_url(self, private, acquire_url, resource_provider, resource_name, resource_version, should_update):
+        c = controller.plugins.toolkit.c
+        c.user = resource_provider
+        package_update = MagicMock()
+        controller.plugins.toolkit.get_action = MagicMock(return_value=package_update)
 
-        expected_number_calls = 0
+        # Call the method
+        dataset = {
+            'private': private,
+            'acquire_url': acquire_url
+        }
+        resource = {
+            'name': resource_name,
+            'version': resource_version,
+            'provider': resource_provider
+        }
+        expected_dataset = dataset.copy()
+        new_name = resource['name'].replace(' ', '%20')
+        expected_dataset['acquire_url'] = '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, resource['provider'], new_name, resource['version'])
+
+        # Update Acquire URL
+        self.instanceController._update_acquire_url(dataset, resource)
+
+        # Check that the acquire URL has been updated
+        if should_update:
+            context = {'model': controller.model, 'session': controller.model.Session,
+                       'user': c.user or c.author, 'auth_user_obj': c.userobj,
+                       }
+            package_update.assert_called_once_with(context, expected_dataset)
+        else:
+            self.assertEquals(0, package_update.call_count)
+
+    @parameterized.expand([
+        ([], None),
+        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], 0),
+        ([{'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], None),
+        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id'] + 'a'), 'state': 'active', 'name': 'a', 'version': '1.0'}], None),
+        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'deleted', 'name': 'a', 'version': '1.0'}], None),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'deleted'}], None),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active'}], None),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], 2)
+
+    ])
+    def test_get_existing_resource(self, current_user_resources, id_correct_resource):
+        # Set up the test and its dependencies
+        req = MagicMock()
+        req.json = MagicMock(return_value=current_user_resources)
+        self.instanceController._make_request = MagicMock(return_value=req)
+        self.instanceController._update_acquire_url = MagicMock()
+
+        # Get the expected result
+        if id_correct_resource is not None:
+            expected_resource = {
+                'provider': controller.plugins.toolkit.c.user,
+                'name': current_user_resources[id_correct_resource]['name'],
+                'version': current_user_resources[id_correct_resource]['version']
+            }
+        else:
+            expected_resource = None
+
+        # Call the function and check the result
+        dataset = DATASET.copy()
+        dataset['private'] = True
+        self.assertEquals(expected_resource, self.instanceController._get_existing_resource(dataset))
+
+        # Update Acquire URL method is called (when the dataset is registered as resource in the Store)
+        if expected_resource is not None:
+            self.instanceController._update_acquire_url.assert_called_once_with(dataset, current_user_resources[id_correct_resource])
+
+    @parameterized.expand([
+        (True,),
+        (False,)
+    ])
+    def test_create_resource(self, private):
+        c = controller.plugins.toolkit.c
+        c.user = 'provider name'
+        resource = {
+            'provider': controller.plugins.toolkit.c.user,
+            'name': 'resource name',
+            'version': 'resource version',
+            'link': 'example link'
+        }
+
+        expected_resource = {
+            'provider': controller.plugins.toolkit.c.user,
+            'name': resource['name'],
+            'version': resource['version']
+        }
+
+        self.instanceController._get_resource = MagicMock(return_value=resource)
+        self.instanceController._make_request = MagicMock()
+        self.instanceController._update_acquire_url = MagicMock()
+
+        # Call the function and check that we recieve the correct result
+        dataset = DATASET.copy()
+        dataset['private'] = private
+        self.assertEquals(expected_resource, self.instanceController._create_resource(dataset))
+
+        # Assert that the methods has been called
+        self.instanceController._get_resource.assert_called_once_with(dataset)
+        headers = {'Content-Type': 'application/json'}
+        self.instanceController._make_request.assert_called_once_with('post', '%s/api/offering/resources' % BASE_STORE_URL, headers, json.dumps(resource))
+
+        # Check that the acquire URL has been updated
+        self.instanceController._update_acquire_url.assert_called_once_with(dataset, resource)
+
+    @parameterized.expand([
+        (True,),
+        (False,)
+    ])
+    def test_rollback(self, offering_created):
         user_nickname = controller.plugins.toolkit.c.user = 'smg'
         # Configure mocks
         self.instanceController._make_request = MagicMock()
         # Call the function
-        self.instanceController._rollback(resource_created, offering_created, OFFERING_INFO_BASE)
-
-        if resource_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' % (BASE_STORE_URL,
-                                                                  user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
-            expected_number_calls += 1
+        self.instanceController._rollback(OFFERING_INFO_BASE, offering_created)
 
         if offering_created:
             self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (BASE_STORE_URL,
                                                                   user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
-            expected_number_calls += 1
-
-        # Check that _make_request has been called the appropriate number of times
-        self.assertEquals(expected_number_calls, self.instanceController._make_request.call_count)
 
     @parameterized.expand([
-        (None,),
-        ([Exception(EXCEPTION_MSG)],                         EXCEPTION_MSG),
-        ([ConnectionError(EXCEPTION_MSG)],                   CONNECTION_ERROR_MSG),
-        ([None, Exception(EXCEPTION_MSG)],                   EXCEPTION_MSG,        True, False),
-        ([None, ConnectionError(EXCEPTION_MSG)],             CONNECTION_ERROR_MSG, True, False),
-        ([None, None, Exception(EXCEPTION_MSG)],             EXCEPTION_MSG,        True, True),
-        ([None, None, ConnectionError(EXCEPTION_MSG)],       CONNECTION_ERROR_MSG, True, True),
-        ([None, None, None, Exception(EXCEPTION_MSG)],       EXCEPTION_MSG,        True, True),
-        ([None, None, None, ConnectionError(EXCEPTION_MSG)], CONNECTION_ERROR_MSG, True, True)
+        (True,  None),
+        (False, None),
+        (True,  [Exception(EXCEPTION_MSG)],                   EXCEPTION_MSG,        False),
+        (False, [Exception(EXCEPTION_MSG)],                   EXCEPTION_MSG,        False),
+        (True,  [ConnectionError(EXCEPTION_MSG)],             CONNECTION_ERROR_MSG, False),
+        (False, [ConnectionError(EXCEPTION_MSG)],             CONNECTION_ERROR_MSG, False),
+        (True,  [None, Exception(EXCEPTION_MSG)],             EXCEPTION_MSG,        True),
+        (False, [None, Exception(EXCEPTION_MSG)],             EXCEPTION_MSG,        True),
+        (True,  [None, ConnectionError(EXCEPTION_MSG)],       CONNECTION_ERROR_MSG, True),
+        (False, [None, ConnectionError(EXCEPTION_MSG)],       CONNECTION_ERROR_MSG, True),
+        (True,  [None, None, Exception(EXCEPTION_MSG)],       EXCEPTION_MSG,        True),
+        (False, [None, None, Exception(EXCEPTION_MSG)],       EXCEPTION_MSG,        True),
+        (True,  [None, None, ConnectionError(EXCEPTION_MSG)], CONNECTION_ERROR_MSG, True),
+        (False, [None, None, ConnectionError(EXCEPTION_MSG)], CONNECTION_ERROR_MSG, True)
     ])
-    def test_create_offering(self, make_req_side_effect, expected_result=True, resource_created=False, offering_created=False):
+    def test_create_offering(self, resource_exists, make_req_side_effect, expected_result=True, offering_created=False):
 
         # Mock the plugin functions
         offering = {'offering': 1}
         resource = {'resource': 2}
         tags = {'tags': ['dataset']}
+        resource = {
+            'provider': 'provider name',
+            'name': 'resource name',
+            'version': 'resource version'
+        }
         self.instanceController._get_resource = MagicMock(return_value=resource)
         self.instanceController._get_offering = MagicMock(return_value=offering)
         self.instanceController._get_tags = MagicMock(return_value=tags)
+        self.instanceController._get_existing_resource = MagicMock(return_value=resource if resource_exists else None)
+        self.instanceController._create_resource = MagicMock(return_value=resource)
         self.instanceController._rollback = MagicMock()
         self.instanceController._make_request = MagicMock(side_effect=make_req_side_effect)
         user_nickname = controller.plugins.toolkit.c.user = 'smg'
 
         # Call the function
-        result = self.instanceController.create_offering(OFFERING_INFO_BASE)
+        result = self.instanceController.create_offering(DATASET, OFFERING_INFO_BASE)
         self.assertEquals(expected_result, result)
 
         # result == True if the offering was created properly
         if expected_result is True:
 
-            self.instanceController._get_resource.assert_called_once_with(OFFERING_INFO_BASE)
-            self.instanceController._get_offering.assert_called_once_with(OFFERING_INFO_BASE)
+            self.instanceController._get_existing_resource.assert_called_once_with(DATASET)
+            if not resource_exists:
+                self.instanceController._create_resource.assert_called_once_with(DATASET)
+            self.instanceController._get_offering.assert_called_once_with(OFFERING_INFO_BASE, resource)
             self.instanceController._get_tags.assert_called_once_with(OFFERING_INFO_BASE)
 
             def check_make_request_calls(call, method, url, headers, data):
@@ -383,12 +516,11 @@ class UIControllerTest(unittest.TestCase):
             headers = {'Content-Type': 'application/json'}
             pkg_name = OFFERING_INFO_BASE['name']
             version = OFFERING_INFO_BASE['version']
-            check_make_request_calls(call_list[0], 'post', '%s/resources' % base_url, headers, json.dumps(resource))
-            check_make_request_calls(call_list[1], 'post', '%s/offerings' % base_url, headers, json.dumps(offering))
-            check_make_request_calls(call_list[2], 'put', '%s/offerings/%s/%s/%s/tag' % (base_url, user_nickname, pkg_name, version), headers, json.dumps(tags))
-            check_make_request_calls(call_list[3], 'post', '%s/offerings/%s/%s/%s/publish' % (base_url, user_nickname, pkg_name, version), headers, json.dumps({'marketplaces': []}))
+            check_make_request_calls(call_list[0], 'post', '%s/offerings' % base_url, headers, json.dumps(offering))
+            check_make_request_calls(call_list[1], 'put', '%s/offerings/%s/%s/%s/tag' % (base_url, user_nickname, pkg_name, version), headers, json.dumps(tags))
+            check_make_request_calls(call_list[2], 'post', '%s/offerings/%s/%s/%s/publish' % (base_url, user_nickname, pkg_name, version), headers, json.dumps({'marketplaces': []}))
         else:
-            self.instanceController._rollback.assert_called_once_with(resource_created, offering_created, OFFERING_INFO_BASE)
+            self.instanceController._rollback.assert_called_once_with(OFFERING_INFO_BASE, offering_created)
 
     @parameterized.expand([
         (False, False, {},),
@@ -514,11 +646,10 @@ class UIControllerTest(unittest.TestCase):
                     'is_open': 'open' in post_content,
                     'tags': tags,
                     'price': real_price,
-                    'image_base64': expected_image,
-                    'update_acquire_url': 'update_acquire_url' in post_content
+                    'image_base64': expected_image
                 }
 
-                self.instanceController.create_offering.assert_called_once_with(expected_data)
+                self.instanceController.create_offering.assert_called_once_with(current_package, expected_data)
 
                 if create_offering_res is True:
 
@@ -528,12 +659,6 @@ class UIControllerTest(unittest.TestCase):
                     controller.helpers.flash_success.assert_called_once_with('Offering <a href="%s" target="_blank">' % offering_url +
                                                                              '%s</a> published correctly.' % post_content['name'],
                                                                              allow_html=True)
-                    # If 'update_acquire_url' is in the request content and 'create_offering' does not fail,
-                    # the package_update function should be called.
-                    if 'update_acquire_url' in post_content:
-                        expected_ds = current_package.copy()
-                        expected_ds['acquire_url'] = offering_url
-                        package_update.assert_called_once_with(expected_context, expected_ds)
                 else:
                     errors['Store'] = [create_offering_res]
                     # The package should not be updated if the create_offering returns an error

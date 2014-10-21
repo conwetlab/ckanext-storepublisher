@@ -7,11 +7,18 @@
 {% set description = offering['description'] if offering else data.notes %}
 {% set tags = ','.join(offering['tags']) if offering else data.tag_string %}
 {% set version =  offering['version'] if offering else '' %}
-{% set license_title = offering['license_title'] if offering else data.get('license_title','') %}
 {% set license_description = offering['license_description'] if offering else '' %}
 {% set price = offering['price'] if offering else '' %}
 {% set is_open = offering['is_open'] if offering else True %}
 {% set update_acquire_url = offering['update_acquire_url'] if offering else True %}
+
+{% if offering['license_title'] %}
+  {% set license_title = offering['license_title'] %}
+{% elif data.get('license_id','') == 'notspecified' %}
+  {% set license_title = '' %}
+{% else %}
+  {% set license_title = data.get('license_title', '') %}
+{% endif %}
 
 {# This provides a full page that renders a form for publishing a dataset. It can
 then itself be extended to add/remove blocks of functionality. #}
@@ -110,26 +117,6 @@ then itself be extended to add/remove blocks of functionality. #}
       </div>
     {% endblock %}
   {% endif %}
-
-  {% if private and 'acquire_url' in data %}
-    {% block offering_update_acquire_url %}
-      <div class="control-group">
-        <div class="controls">
-          <label class="checkbox" for="field-update_acquire_url">
-            <input id="field-update_acquire_url" type="checkbox" name="update_acquire_url" value="" {{ "checked " if update_acquire_url }}>
-            {% trans %}Update Acquire URL{% endtrans %}  
-            <span class="info-block info-inline" style="font-weight: normal;">
-              <i class="icon-info-sign"></i>
-              {% trans %}
-                This dataset has an Acquire URL attached. If you enable this checkbox, this URL will be updated with the URL of the created offering.
-              {% endtrans %}
-            </span>        
-          </label>
-        </div>
-      </div>
-    {% endblock %}
-  {% endif %}
-
 
   {% block form_actions %}
     <div class="form-actions">
