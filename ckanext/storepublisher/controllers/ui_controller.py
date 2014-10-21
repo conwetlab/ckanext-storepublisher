@@ -96,12 +96,15 @@ class PublishControllerUI(base.BaseController):
         offering['applications'] = []
         offering['offering_info'] = {
             'description': offering_info['description'],
-            'pricing': {},
-            'legal': {
+            'pricing': {}
+        }
+
+        # Set license
+        if offering_info['license_title'] or offering_info['license_description']:
+            offering['offering_info']['legal'] = {
                 'title': offering_info['license_title'],
                 'text': offering_info['license_description']
             }
-        }
 
         # Set price
         if offering_info['price'] == 0.0:
@@ -155,6 +158,24 @@ class PublishControllerUI(base.BaseController):
 
         return req
 
+    def _update_acquire_url(self, dataset, resource):
+        # Set needed variables
+        c = plugins.toolkit.c
+        tk = plugins.toolkit
+        context = {'model': model, 'session': model.Session,
+                   'user': c.user or c.author, 'auth_user_obj': c.userobj,
+                   }
+
+        if dataset['private']:
+            user_nickname = c.user
+            name = resource['name'].replace(' ', '%20')
+            resource_url = '%s/search/resource/%s/%s/%s' % (self.store_url, user_nickname, name, resource['version'])
+
+            if dataset.get('acquire_url', '') != resource_url:
+                dataset['acquire_url'] = resource_url
+                tk.get_action('package_update')(context, dataset)
+                log.info('Acquire URL updated correctly to %s' % resource_url)
+
     def _generate_resource_info(self, resource):
         return {
             'provider': plugins.toolkit.c.user,
@@ -174,31 +195,18 @@ class PublishControllerUI(base.BaseController):
 
         if len(valid_resources) > 0:
             resource = valid_resources.pop(0)
+            self._update_acquire_url(dataset, resource)
             return self._generate_resource_info(resource)
         else:
             return None
 
     def _create_resource(self, dataset):
-        # Set needed variables
-        c = plugins.toolkit.c
-        tk = plugins.toolkit
-        context = {'model': model, 'session': model.Session,
-                   'user': c.user or c.author, 'auth_user_obj': c.userobj,
-                   }
-
         # Create the resource
         resource = self._get_resource(dataset)
         headers = {'Content-Type': 'application/json'}
         self._make_request('post', '%s/api/offering/resources' % self.store_url, headers, json.dumps(resource))
 
-        # Update the Acquire URL automatically
-        if dataset['private']:
-            user_nickname = c.user
-            name = resource['name'].replace(' ', '%20')
-            resource_url = '%s/search/resource/%s/%s/%s' % (self.store_url, user_nickname, name, resource['version'])
-            dataset['acquire_url'] = resource_url
-            tk.get_action('package_update')(context, dataset)
-            log.info('Acquire URL updated correctly to %s' % resource_url)
+        self._update_acquire_url(dataset, resource)
 
         # Return the resource
         return self._generate_resource_info(resource)

@@ -324,6 +324,44 @@ class UIControllerTest(unittest.TestCase):
             self.instanceController._make_request(method, url, headers, data)
 
     @parameterized.expand([
+        (True, '',                                                                                        'provider_name', 'testResource', '1.0', True),
+        (True,  '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, 'provider name', 'testResource', '1.0'), 'provider name', 'testResource', '1.0', False),
+        (False, '',                                                                                       'provider_name', 'testResource', '1.0', False),
+        (False, '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, 'provider name', 'testResource', '1.0'), 'provider name', 'testResource', '1.0', False),
+    ])
+    def test_update_acquire_url(self, private, acquire_url, resource_provider, resource_name, resource_version, should_update):
+        c = controller.plugins.toolkit.c
+        c.user = resource_provider
+        package_update = MagicMock()
+        controller.plugins.toolkit.get_action = MagicMock(return_value=package_update)
+
+        # Call the method
+        dataset = {
+            'private': private,
+            'acquire_url': acquire_url
+        }
+        resource = {
+            'name': resource_name,
+            'version': resource_version,
+            'provider': resource_provider
+        }
+        expected_dataset = dataset.copy()
+        new_name = resource['name'].replace(' ', '%20')
+        expected_dataset['acquire_url'] = '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, resource['provider'], new_name, resource['version'])
+
+        # Update Acquire URL
+        self.instanceController._update_acquire_url(dataset, resource)
+
+        # Check that the acquire URL has been updated
+        if should_update:
+            context = {'model': controller.model, 'session': controller.model.Session,
+                       'user': c.user or c.author, 'auth_user_obj': c.userobj,
+                       }
+            package_update.assert_called_once_with(context, expected_dataset)
+        else:
+            self.assertEquals(0, package_update.call_count)
+
+    @parameterized.expand([
         ([], None),
         ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], 0),
         ([{'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], None),
@@ -345,6 +383,7 @@ class UIControllerTest(unittest.TestCase):
         req = MagicMock()
         req.json = MagicMock(return_value=current_user_resources)
         self.instanceController._make_request = MagicMock(return_value=req)
+        self.instanceController._update_acquire_url = MagicMock()
 
         # Get the expected result
         if id_correct_resource is not None:
@@ -357,7 +396,13 @@ class UIControllerTest(unittest.TestCase):
             expected_resource = None
 
         # Call the function and check the result
-        self.assertEquals(expected_resource, self.instanceController._get_existing_resource(DATASET))
+        dataset = DATASET.copy()
+        dataset['private'] = True
+        self.assertEquals(expected_resource, self.instanceController._get_existing_resource(dataset))
+
+        # Update Acquire URL method is called (when the dataset is registered as resource in the Store)
+        if expected_resource is not None:
+            self.instanceController._update_acquire_url.assert_called_once_with(dataset, current_user_resources[id_correct_resource])
 
     @parameterized.expand([
         (True,),
@@ -381,16 +426,11 @@ class UIControllerTest(unittest.TestCase):
 
         self.instanceController._get_resource = MagicMock(return_value=resource)
         self.instanceController._make_request = MagicMock()
-        package_update = MagicMock()
-        controller.plugins.toolkit.get_action = MagicMock(return_value=package_update)
+        self.instanceController._update_acquire_url = MagicMock()
 
+        # Call the function and check that we recieve the correct result
         dataset = DATASET.copy()
         dataset['private'] = private
-        expected_dataset = dataset.copy()
-        new_name = resource['name'].replace(' ', '%20')
-        expected_dataset['acquire_url'] = '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, resource['provider'], new_name, resource['version'])
-        
-        # Call the function and check that we recieve the correct result
         self.assertEquals(expected_resource, self.instanceController._create_resource(dataset))
 
         # Assert that the methods has been called
@@ -399,13 +439,7 @@ class UIControllerTest(unittest.TestCase):
         self.instanceController._make_request.assert_called_once_with('post', '%s/api/offering/resources' % BASE_STORE_URL, headers, json.dumps(resource))
 
         # Check that the acquire URL has been updated
-        if private:
-            context = {'model': controller.model, 'session': controller.model.Session,
-                       'user': c.user or c.author, 'auth_user_obj': c.userobj,
-                       }
-            package_update.assert_called_once_with(context, expected_dataset)
-        else:
-            self.assertEquals(0, package_update.call_count)
+        self.instanceController._update_acquire_url.assert_called_once_with(dataset, resource)
 
     @parameterized.expand([
         (True,),
