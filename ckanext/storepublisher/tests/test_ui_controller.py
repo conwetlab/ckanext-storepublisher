@@ -245,12 +245,13 @@ class UIControllerTest(unittest.TestCase):
         controller.plugins.toolkit.c.usertoken_refresh = MagicMock(side_effect=refresh_function_side_effect)
 
         expected_headers = headers.copy()
+        expected_headers['Accept'] = 'application/json'
         expected_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
 
         # Set the response status
         first_response = MagicMock()
         first_response.status_code = response_status
-        first_response.text = '<error>%s</error>' % ERROR_MSG
+        first_response.text = '{"message": %s, "result": False}' % ERROR_MSG
         second_response = MagicMock()
         second_response.status_code = 201
 
@@ -284,10 +285,9 @@ class UIControllerTest(unittest.TestCase):
                 self.assertEquals(url, req_method.call_args_list[1][0][0])
 
                 # Check headers
-                expected_initial_headers = headers.copy()
-                expected_initial_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
-                self.assertEquals(expected_initial_headers, req_method.call_args_list[0][1]['headers'])
+                self.assertEquals(expected_headers, req_method.call_args_list[0][1]['headers'])
                 expected_final_headers = headers.copy()
+                expected_final_headers['Accept'] = 'application/json'
                 expected_final_headers['Authorization'] = '%s %s' % (newtoken['token_type'], newtoken['access_token'])
                 self.assertEquals(expected_final_headers, req_method.call_args_list[1][1]['headers'])
 

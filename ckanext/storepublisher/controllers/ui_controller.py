@@ -130,6 +130,8 @@ class PublishControllerUI(base.BaseController):
             # Include access token in the request
             usertoken = plugins.toolkit.c.usertoken
             final_headers = headers.copy()
+            # Receive the content in JSON to parse the errors easily
+            final_headers['Accept'] = 'application/json'
             final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
 
             req_method = getattr(requests, method)
@@ -152,8 +154,8 @@ class PublishControllerUI(base.BaseController):
         invalid_first_digits = [4, 5]
 
         if status_code_first_digit in invalid_first_digits:
-            errors = re.findall('<error>(.*)</error>', req.text)
-            error_msg = errors[0] if errors else 'Unknown Error: %s' % req.text
+            result = req.json()
+            error_msg = result['message']
             raise Exception(error_msg)
 
         return req
