@@ -1,4 +1,4 @@
-CKAN Store Publisher [![Build Status](http://hercules.ls.fi.upm.es/jenkins/buildStatus/icon?job=ckan_storepublisher)](http://hercules.ls.fi.upm.es/jenkins/job/ckan_storepublisher/)
+CKAN Store Publisher [![Build Status](https://build.conwet.fi.upm.es/jenkins/buildStatus/icon?job=ckan_storepublisher)](https://build.conwet.fi.upm.es/jenkins/job/ckan_storepublisher/)
 =====================
 
 CKAN extension that allows users to publish datasets in the FIWARE Store (as offerings) in a simpler way. To do so, a new tab is added in the Datasets *Manage* menu that offers a form to set the basic options of the offering.
@@ -39,4 +39,3 @@ nosetests --ckan --with-pylons=test.ini ckanext/storepublisher/tests/
 You can also generate coverage reports by running:
 ```
 nosetests --ckan --with-xunit --with-pylons=test.ini ckanext/storepublisher/tests/ --with-coverage --cover-package=ckanext.storepublisher --cover-inclusive --cover-erase . --cover-xml
-
