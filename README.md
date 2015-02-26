@@ -18,7 +18,7 @@ Requirements
 
 Installation
 ------------
-Install this extension in your CKAN is instance is as easy as intall any other CKAN extension.
+Install this extension in your CKAN instance is as easy as intall any other CKAN extension.
 
 * Download the source from this GitHub repo.
 * Activate your virtual environment (generally by running `. /usr/lib/ckan/default/bin/activate`)
