@@ -75,6 +75,7 @@ class PublishControllerUI(base.BaseController):
         resource['description'] = dataset['notes']
         resource['version'] = '1.0'
         resource['content_type'] = 'dataset'
+        resource['resource_type'] = 'API'
         # Open resources can be offered in Non-open Offerings
         resource['open'] = True
         resource['link'] = self._get_dataset_url(dataset)
@@ -133,6 +134,8 @@ class PublishControllerUI(base.BaseController):
             # Receive the content in JSON to parse the errors easily
             final_headers['Accept'] = 'application/json'
             final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
+
+            print final_headers
 
             req_method = getattr(requests, method)
             req = req_method(url, headers=final_headers, data=data)
