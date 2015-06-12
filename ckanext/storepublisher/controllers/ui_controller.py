@@ -41,7 +41,7 @@ with open(filepath, 'rb') as f:
 class PublishControllerUI(base.BaseController):
 
     def __init__(self, name=None):
-        self.store_connector = StoreConnector(config)
+        self._store_connector = StoreConnector(config)
 
     def publish(self, id, offering_info=None, errors=None):
 
@@ -129,13 +129,13 @@ class PublishControllerUI(base.BaseController):
 
             if not c.errors:
 
-                result = self.store_connector.create_offering(dataset, offering_info)
+                result = self._store_connector.create_offering(dataset, offering_info)
                 if result is True:
 
                     user_nickname = tk.c.user
                     # Offering names can include spaces, but URLs should not include them
                     name = offering_info['name'].replace(' ', '%20')
-                    offering_url = '%s/offering/%s/%s/%s' % (self.store_connector.store_url,
+                    offering_url = '%s/offering/%s/%s/%s' % (self._store_connector.store_url,
                                                              user_nickname, name,
                                                              offering_info['version'])
 

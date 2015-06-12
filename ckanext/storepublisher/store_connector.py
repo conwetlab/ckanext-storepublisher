@@ -25,6 +25,7 @@ import re
 import requests
 
 from unicodedata import normalize
+from requests_oauthlib import OAuth2Session
 
 log = logging.getLogger(__name__)
 
@@ -121,9 +122,10 @@ class StoreConnector(object):
             final_headers = headers.copy()
             # Receive the content in JSON to parse the errors easily
             final_headers['Accept'] = 'application/json'
-            final_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
+            # OAuth2Session
+            oauth_request = OAuth2Session(token=usertoken)
 
-            req_method = getattr(requests, method)
+            req_method = getattr(oauth_request, method)
             req = req_method(url, headers=final_headers, data=data)
 
             return req
@@ -132,7 +134,7 @@ class StoreConnector(object):
 
         # When a 401 status code is got, we should refresh the token and retry the request.
         if req.status_code == 401:
-            log.info('%s(%s): returned 401. Has the token expired? Retrieving new token and retrying...' % (method, url))
+            log.info('%s(%s): returned 401. Token expired? Request will be retried with a refresehd token' % (method, url))
             plugins.toolkit.c.usertoken_refresh()
             # Update the header 'Authorization'
             req = _get_headers_and_make_request(method, url, headers, data)
@@ -175,7 +177,7 @@ class StoreConnector(object):
             'version': resource.get('version')
         }
 
-    def _get_existing_resource(self, dataset):
+    def _get_existing_resources(self, dataset):
         dataset_url = self._get_dataset_url(dataset)
         req = self._make_request('get', '%s/api/offering/resources' % self.store_url)
         resources = req.json()
@@ -183,7 +185,11 @@ class StoreConnector(object):
         def _valid_resources_filter(resource):
             return resource.get('state') != 'deleted' and resource.get('link', '') == dataset_url
 
-        valid_resources = filter(_valid_resources_filter, resources)
+        return filter(_valid_resources_filter, resources)
+
+    def _get_existing_resource(self, dataset):
+
+        valid_resources = self._get_existing_resources(dataset)
 
         if len(valid_resources) > 0:
             resource = valid_resources.pop(0)
@@ -211,10 +217,25 @@ class StoreConnector(object):
         try:
             # Delete the offering only if it was created
             if offering_created:
-                self._make_request('delete', '%s/api/offering/offerings/%s/%s/%s' % (self.store_url, 
+                self._make_request('delete', '%s/api/offering/offerings/%s/%s/%s' % (self.store_url,
                                    user_nickname, offering_info['name'], offering_info['version']))
         except Exception as e:
             log.warn('Rollback failed %s' % e)
+
+    def delete_attached_resources(self, dataset):
+        resources = self._get_existing_resources(dataset)
+        user_nickname = plugins.toolkit.c.user
+
+        for resource in resources:
+            try:
+                name = resource['name'].replace(' ', '%20')
+                version = resource['version']
+                self._make_request('delete', '%s/api/offering/resources/%s/%s/%s' %
+                                             (self.store_url, user_nickname, name, version))
+            except requests.ConnectionError as e:
+                log.warn(e)
+            except Exception as e:
+                log.warn(e)
 
     def create_offering(self, dataset, offering_info):
 
@@ -238,7 +259,7 @@ class StoreConnector(object):
             offering_version = offering_info['version']
 
             # Create the offering
-            self._make_request('post', '%s/api/offering/offerings' % self.store_url, 
+            self._make_request('post', '%s/api/offering/offerings' % self.store_url,
                                headers, json.dumps(offering))
             offering_created = True
             # Attach tags to the offerings
