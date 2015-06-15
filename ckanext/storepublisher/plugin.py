@@ -19,11 +19,18 @@
 
 import ckan.plugins as plugins
 
+from store_connector import StoreConnector
+from pylons import config
+
 
 class StorePublisher(plugins.SingletonPlugin):
 
     plugins.implements(plugins.IConfigurer)
+    plugins.implements(plugins.IPackageController, inherit=True)
     plugins.implements(plugins.IRoutes, inherit=True)
+
+    def __init__(self, name=None):
+        self._store_connector = StoreConnector(config)
 
     def update_config(self, config):
         # Add this plugin's templates dir to CKAN's extra_template_paths, so
@@ -34,8 +41,19 @@ class StorePublisher(plugins.SingletonPlugin):
         plugins.toolkit.add_resource('fanstatic', 'storepublisher')
 
     def before_map(self, m):
-        # DataSet acquired notification
+        # Publish data offering controller
         m.connect('dataset_publish', '/dataset/publish/{id}', action='publish',
                   controller='ckanext.storepublisher.controllers.ui_controller:PublishControllerUI',
                   ckan_icon='shopping-cart')
         return m
+
+    ######################################################################
+    ######################### IPACKAGECONTROLLER #########################
+    ######################################################################
+
+    def after_delete(self, context, pkg_dict):
+
+        dataset = plugins.toolkit.get_action('package_show')(context, pkg_dict)
+        self._store_connector.delete_attached_resources(dataset)
+
+        return pkg_dict
