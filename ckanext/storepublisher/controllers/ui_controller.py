@@ -103,6 +103,7 @@ class PublishControllerUI(base.BaseController):
                 try:
                     offering_info['price'] = float(price)
                 except Exception:
+                    offering_info['price'] = price
                     log.warn('%r is not a valid price' % price)
                     c.errors['Price'] = ['"%s" is not a valid number' % price]
 
@@ -123,7 +124,7 @@ class PublishControllerUI(base.BaseController):
                 c.errors['Open'] = ['Private Datasets cannot be offered as Open Offerings']
 
             # Public datasets cannot be offered with price
-            if 'price' in offering_info and dataset['private'] is False and offering_info['price'] != 0.0:
+            if 'price' in offering_info and dataset['private'] is False and offering_info['price'] != 0.0 and 'Price' not in c.errors:
                 log.warn('User tried to create a paid offering for a public dataset')
                 c.errors['Price'] = ['You cannot set a price to a dataset that is public since everyone can access it']
 

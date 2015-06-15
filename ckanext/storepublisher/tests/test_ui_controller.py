@@ -63,8 +63,8 @@ class UIControllerTest(unittest.TestCase):
         controller.StoreConnector = self._StoreConnector
 
     @parameterized.expand([
-        (False, False, {},),
-        # Test missing fields
+        # (False, False, {},),
+        # # Test missing fields
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},),
         (True,  False, {'version': '1.0', 'pkg_id': 'package_id'}),
         (True,  False, {'name': 'a', 'pkg_id': 'package_id'}),
