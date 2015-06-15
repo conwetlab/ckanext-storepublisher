@@ -43,6 +43,10 @@ def slugify(text, delim=' '):
     return delim.join(result)
 
 
+class StoreException(Exception):
+    pass
+
+
 class StoreConnector(object):
 
     def __init__(self, config):
@@ -51,7 +55,7 @@ class StoreConnector(object):
         self.repository = config.get('ckan.storepublisher.repository')
 
     def _get_url(self, config, config_property):
-        url = config.get(config_property)
+        url = config.get(config_property, '')
         url = url[:-1] if url.endswith('/') else url
         return url
 
@@ -223,6 +227,15 @@ class StoreConnector(object):
             log.warn('Rollback failed %s' % e)
 
     def delete_attached_resources(self, dataset):
+        '''
+        Method to delete all the resources (and offerings) that containts the given
+        dataset.
+
+        :param dataset: The dataset whose attached offerings and resources want to be
+            deleted from the Store
+        :type dataset: dict
+        '''
+
         resources = self._get_existing_resources(dataset)
         user_nickname = plugins.toolkit.c.user
 
@@ -238,6 +251,27 @@ class StoreConnector(object):
                 log.warn(e)
 
     def create_offering(self, dataset, offering_info):
+        '''
+        Method to create an offering in the store that will contain the given dataset.
+        The method will check if there is a resource in the Store that contains the
+        dataset. If so, this resource will be used to create the offering. Otherwise
+        a new resource will be created.
+        Once that the resource is ready, a new offering will be created and the resource
+        will be bounded.
+
+        :param dataset: The dataset that will be include in the offering
+        :type dataset: dict
+
+        :param offering_info: A dict that contains additional info for the offering: name,
+            description, license, offering version, price, image
+        :type offering_info: dict
+
+        :returns: The URL of the offering that contains the dataset
+        :rtype: string
+
+        :raises StoreException: When the store cannot be connected or when the Store
+            returns some errors
+        '''
 
         user_nickname = plugins.toolkit.c.user
 
@@ -262,24 +296,28 @@ class StoreConnector(object):
             self._make_request('post', '%s/api/offering/offerings' % self.store_url,
                                headers, json.dumps(offering))
             offering_created = True
+
             # Attach tags to the offerings
             self._make_request('put', '%s/api/offering/offerings/%s/%s/%s/tag' %
                                       (self.store_url, user_nickname, offering_name,
                                        offering_version),
                                headers, json.dumps(tags))
+
             # Publish offering
             self._make_request('post', '%s/api/offering/offerings/%s/%s/%s/publish' %
                                        (self.store_url, user_nickname, offering_name,
                                         offering_version),
                                headers, json.dumps({'marketplaces': []}))
 
-            # True = Offering created correctly
-            return True
+            # Return offering URL
+            name = offering_info['name'].replace(' ', '%20')
+            return '%s/offering/%s/%s/%s' % (self.store_url, user_nickname, name,
+                                             offering_info['version'])
         except requests.ConnectionError as e:
             log.warn(e)
             self._rollback(offering_info, offering_created)
-            return 'It was impossible to connect with the Store'
+            raise StoreException('It was impossible to connect with the Store')
         except Exception as e:
             log.warn(e)
             self._rollback(offering_info, offering_created)
-            return e.message    # Return the error message
+            raise StoreException(e.message)

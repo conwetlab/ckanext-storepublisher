@@ -25,7 +25,7 @@ import ckan.plugins as plugins
 import logging
 import os
 
-from ckanext.storepublisher.store_connector import StoreConnector
+from ckanext.storepublisher.store_connector import StoreConnector, StoreException
 from ckan.common import request
 from pylons import config
 
@@ -129,15 +129,8 @@ class PublishControllerUI(base.BaseController):
 
             if not c.errors:
 
-                result = self._store_connector.create_offering(dataset, offering_info)
-                if result is True:
-
-                    user_nickname = tk.c.user
-                    # Offering names can include spaces, but URLs should not include them
-                    name = offering_info['name'].replace(' ', '%20')
-                    offering_url = '%s/offering/%s/%s/%s' % (self._store_connector.store_url,
-                                                             user_nickname, name,
-                                                             offering_info['version'])
+                try:
+                    offering_url = self._store_connector.create_offering(dataset, offering_info)
 
                     helpers.flash_success(tk._('Offering <a href="%s" target="_blank">%s</a> published correctly.' %
                                                (offering_url, offering_info['name'])), allow_html=True)
@@ -145,7 +138,7 @@ class PublishControllerUI(base.BaseController):
                     # FIX: When a redirection is performed, the success message is not shown
                     # response.status_int = 302
                     # response.location = '/dataset/%s' % id
-                else:
-                    c.errors['Store'] = [result]
+                except StoreException as e:
+                    c.errors['Store'] = [e.message]
 
         return tk.render('package/publish.html')
