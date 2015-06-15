@@ -32,16 +32,21 @@ class PluginTest(unittest.TestCase):
         # Mocks
         self._toolkit = plugin.plugins.toolkit
         plugin.plugins.toolkit = MagicMock()
+        self._StoreConnector = plugin.StoreConnector
+        self._store_connector_instance = MagicMock()
+        plugin.StoreConnector = MagicMock(return_value=self._store_connector_instance)
 
         # Create the plugin
         self.storePublisher = plugin.StorePublisher()
 
     def tearDown(self):
         plugin.plugins.toolkit = self._toolkit
+        plugin.StoreConnector = self._StoreConnector
 
     @parameterized.expand([
         (plugin.plugins.IConfigurer,),
         (plugin.plugins.IRoutes,),
+        (plugin.plugins.IPackageController,),
     ])
     def test_implementation(self, interface):
         self.assertTrue(interface.implemented_by(plugin.StorePublisher))
@@ -64,3 +69,18 @@ class PluginTest(unittest.TestCase):
         m.connect.assert_called_once_with('dataset_publish', '/dataset/publish/{id}', action='publish',
                                           controller='ckanext.storepublisher.controllers.ui_controller:PublishControllerUI',
                                           ckan_icon='shopping-cart')
+
+    def test_after_delete(self):
+        dataset = MagicMock()
+        action = MagicMock(return_value=dataset)
+        plugin.plugins.toolkit.get_action = MagicMock(return_value=action)
+
+        # Call the function
+        context = {'user': MagicMock()}
+        dataset_info = {'pkg_id': 'example-pkg-id'}
+        self.storePublisher.after_delete(context, dataset_info)
+
+        # Verifications
+        self._store_connector_instance.delete_attached_resources.assert_called_once_with(dataset)
+        action.assert_called_once_with(context, dataset_info)
+        plugin.plugins.toolkit.get_action.assert_called_once_with('package_show')

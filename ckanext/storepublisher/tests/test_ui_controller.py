@@ -19,7 +19,6 @@
 
 import ckanext.storepublisher.controllers.ui_controller as controller
 import base64
-import json
 import os
 import unittest
 
@@ -27,33 +26,7 @@ from mock import MagicMock
 from nose_parameterized import parameterized
 
 
-DATASET = {
-    'id': 'example_id',
-    'title': u'Dataset A',
-    'notes': 'Dataset description. This can be a very long field and can include markdown syntax'
-}
-
-
-OFFERING_INFO_BASE = {
-    'pkg_id': 'identifier',
-    'name': 'Offering 1',
-    'description': 'Dataset description. This can be a very long field and can include markdown syntax',
-    'version': '1.7',
-    'tags': ['tag1', 'tag2', 'tag3'],
-    'license_title': 'Creative Commons',
-    'license_description': 'This is an example description',
-    'price': 1,
-    'is_open': True,
-    'image_base64': 'IMGB4/png/data'
-}
-EXCEPTION_MSG = 'Exception Message'
 MISSING_ERROR = 'This filed is required to publish the offering'
-CONNECTION_ERROR_MSG = 'It was impossible to connect with the Store'
-BASE_SITE_URL = 'https://localhost:8474'
-BASE_STORE_URL = 'https://store.example.com:7458'
-
-# Need to be defined here, since it will be used as tests parameter
-ConnectionError = controller.requests.ConnectionError
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 filepath = os.path.join(__dir__, '../assets/logo-ckan.png')
@@ -66,13 +39,12 @@ class UIControllerTest(unittest.TestCase):
 
     def setUp(self):
 
-        # Mocks
         self._toolkit = controller.plugins.toolkit
         controller.plugins.toolkit = MagicMock()
         controller.plugins.toolkit.NotAuthorized = self._toolkit.NotAuthorized
 
-        self._model = controller.model
-        controller.model = MagicMock()
+        self._request = controller.request
+        controller.request = MagicMock()
 
         self._helpers = controller.helpers
         controller.helpers = MagicMock()
@@ -80,451 +52,19 @@ class UIControllerTest(unittest.TestCase):
         self._base64 = controller.base64
         controller.base64 = MagicMock()
 
-        self._requests = controller.requests
-        controller.requests = MagicMock()
-        controller.requests.ConnectionError = ConnectionError    # Recover Exception
-
-        self._request = controller.request
-        controller.request = MagicMock()
-
-        self._config = controller.config
-        controller.config = {
-            'ckan.site_url': BASE_SITE_URL,
-            'ckan.storepublisher.store_url': BASE_STORE_URL,
-            'ckan.storepublisher.repository': 'Example Repo'
-        }
+        self._StoreConnector = controller.StoreConnector
+        self._store_connector_instance = MagicMock()
+        controller.StoreConnector = MagicMock(return_value=self._store_connector_instance)
 
         # Create the plugin
         self.instanceController = controller.PublishControllerUI()
-        
-        # Save controller functions since it will be mocked in some tests
-        self._make_request = self.instanceController._make_request
-        self._rollback = self.instanceController._rollback
-        self._get_resource = self.instanceController._get_resource
-        self._get_offering = self.instanceController._get_offering
-        self._get_tags = self.instanceController._get_tags
-        self._create_offering = self.instanceController.create_offering
 
     def tearDown(self):
-        controller.plugins.toolkit = self._toolkit
-        controller.requests = self._requests
-        controller.base64 = self._base64
-        controller.request = self._request
-        controller.model = self._model
-        controller.helper = self._helpers
-        controller.config = self._config
-
-        # Restore controller functions
-        self.instanceController._make_request = self._make_request
-        self.instanceController._rollback = self._rollback
-        self.instanceController.create_offering = self._create_offering
-        self.instanceController._get_resource = self._get_resource
-        self.instanceController._get_offering = self._get_offering
-        self.instanceController._get_tags = self._get_tags
+        controller.StoreConnector = self._StoreConnector
 
     @parameterized.expand([
-        ('%s' % BASE_SITE_URL,  '%s' % BASE_STORE_URL),
-        ('%s/' % BASE_SITE_URL, '%s' % BASE_STORE_URL),
-        ('%s' % BASE_SITE_URL,  '%s/' % BASE_STORE_URL),
-        ('%s/' % BASE_SITE_URL, '%s/' % BASE_STORE_URL)
-    ])
-    def test_init(self, site_url, store_url):
-
-        controller.config = {
-            'ckan.site_url': site_url,
-            'ckan.storepublisher.store_url': store_url,
-            'ckan.storepublisher.repository': 'Example Repo'
-        }
-
-        instance = controller.PublishControllerUI()
-        self.assertEquals(BASE_SITE_URL, instance.site_url)
-        self.assertEquals(BASE_STORE_URL, instance.store_url)
-
-    @parameterized.expand([
-        (DATASET['title'], DATASET['title']),
-        (u'ábcdé! fgh?=monitor', 'abcde fgh monitor')
-    ])
-    def test_get_resource(self, initial_name, expected_name):
-        dataset = DATASET.copy()
-        dataset['title'] = initial_name
-        resource = self.instanceController._get_resource(dataset)
-
-        # Check the values
-        self.assertEquals('Dataset %s - ID %s' % (expected_name, DATASET['id']), resource['name'])
-        self.assertEquals(DATASET['notes'], resource['description'])
-        self.assertEquals('1.0', resource['version'])
-        self.assertEquals('dataset', resource['content_type'])
-        self.assertEquals(True, resource['open'])
-        self.assertEquals('%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), resource['link'])
-
-    @parameterized.expand([
-        (0,),
-        (1,)
-    ])
-    def test_get_offering(self, price):
-        user_nickname = 'smg'
-        controller.plugins.toolkit.c.user = user_nickname
-        offering_info = OFFERING_INFO_BASE.copy()
-        offering_info['price'] = price
-        resource = {'provider': 'test', 'name': 'resource_name', 'version': '1.0'}
-        offering = self.instanceController._get_offering(offering_info, resource)
-
-        # Check the values
-        self.assertEquals(OFFERING_INFO_BASE['name'], offering['name'])
-        self.assertEquals(OFFERING_INFO_BASE['version'], offering['version'])
-        self.assertEquals('ckan.png', offering['image']['name'])
-        self.assertEquals(OFFERING_INFO_BASE['image_base64'], offering['image']['data'])
-        self.assertEquals([], offering['related_images'])
-        self.assertEquals([resource], offering['resources'])
-        self.assertEquals([], offering['applications'])
-        self.assertEquals(OFFERING_INFO_BASE['description'], offering['offering_info']['description'])
-        self.assertEquals(OFFERING_INFO_BASE['license_title'], offering['offering_info']['legal']['title'])
-        self.assertEquals(OFFERING_INFO_BASE['license_description'], offering['offering_info']['legal']['text'])
-        self.assertEquals(controller.config['ckan.storepublisher.repository'], offering['repository'])
-        self.assertEquals(OFFERING_INFO_BASE['is_open'], offering['open'])
-
-        # Check price
-        if price == 0:
-            self.assertEquals('free', offering['offering_info']['pricing']['price_model'])
-        else:
-            self.assertEquals('single_payment', offering['offering_info']['pricing']['price_model'])
-            self.assertEquals(price, offering['offering_info']['pricing']['price'])
-
-    def test_get_tags(self):
-        expected_tags = list(OFFERING_INFO_BASE['tags'])
-        expected_tags.append('dataset')
-        returned_tags = self.instanceController._get_tags(OFFERING_INFO_BASE)['tags']
-        self.assertEquals(expected_tags, returned_tags)
-
-    @parameterized.expand([
-        ('get',    {},                    None,        200),
-        ('post',   {},                    None,        200),
-        ('put',    {},                    None,        200),
-        ('delete', {},                    None,        200),
-        ('get',    {},                    None,        400),
-        ('post',   {},                    None,        402),
-        ('put',    {},                    None,        457),
-        ('delete', {},                    None,        499),
-        ('get',    {},                    None,        500),
-        ('post',   {},                    None,        502),
-        ('put',    {},                    None,        557),
-        ('delete', {},                    None,        599),
-        ('get',    {'Content-Type': 'a'}, 'TEST DATA', 200),
-        ('post',   {'Content-Type': 'b'}, 'TEST DATA', 200),
-        ('put',    {'Content-Type': 'c'}, 'TEST DATA', 200),
-        ('delete', {'Content-Type': 'd'}, 'TEST DATA', 200),
-        ('get',    {},                    None,        401),
-        ('post',   {},                    None,        401),
-        ('put',    {},                    None,        401),
-        ('delete', {},                    None,        401),
-        ('get',    {'Content-Type': 'a'}, 'TEST DATA', 401),
-        ('post',   {'Content-Type': 'b'}, 'TEST DATA', 401),
-        ('put',    {'Content-Type': 'c'}, 'TEST DATA', 401),
-        ('delete', {'Content-Type': 'd'}, 'TEST DATA', 401)
-    ])
-    def test_make_request(self, method, headers, data, response_status):
-        url = 'http://example.com'
-        ERROR_MSG = 'This is an example error!'
-
-        # Set the environ
-        usertoken = controller.plugins.toolkit.c.usertoken = {
-            'token_type': 'bearer',
-            'access_token': 'access_token',
-            'refresh_token': 'refresh_token'
-        }
-
-        newtoken = {
-            'token_type': 'bearer',
-            'access_token': 'new_access_token',
-            'refresh_token': 'new_refresh_token'
-        }
-
-        # Mock refresh_function
-        def refresh_function_side_effect():
-            controller.plugins.toolkit.c.usertoken = newtoken
-        controller.plugins.toolkit.c.usertoken_refresh = MagicMock(side_effect=refresh_function_side_effect)
-
-        expected_headers = headers.copy()
-        expected_headers['Accept'] = 'application/json'
-        expected_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
-
-        # Set the response status
-        first_response = MagicMock()
-        first_response.status_code = response_status
-        first_response.text = '{"message": %s, "result": False}' % ERROR_MSG
-        second_response = MagicMock()
-        second_response.status_code = 201
-
-        def req_method_side_effect(url, headers, data):
-            if newtoken['access_token'] in headers['Authorization']:
-                return second_response
-            else:
-                return first_response
-
-        req_method = MagicMock(side_effect=req_method_side_effect)
-        setattr(controller.requests, method, req_method)
-
-        # Call the function
-        if response_status > 399 and response_status < 600 and response_status != 401:
-            with self.assertRaises(Exception) as e:
-                self.instanceController._make_request(method, url, headers, data)
-                self.assertEquals(ERROR_MSG, e.message)
-        else:
-            result = self.instanceController._make_request(method, url, headers, data)
-
-            # If the first request returns a 401, the request is retried with a new access_token...
-            if response_status != 401:
-                self.assertEquals(first_response, result)
-                req_method.assert_called_once_with(url, headers=expected_headers, data=data)
-            else:
-                # Check that the token has been refreshed
-                controller.plugins.toolkit.c.usertoken_refresh.assert_called_once_with()
-
-                # Check URL
-                self.assertEquals(url, req_method.call_args_list[0][0][0])
-                self.assertEquals(url, req_method.call_args_list[1][0][0])
-
-                # Check headers
-                self.assertEquals(expected_headers, req_method.call_args_list[0][1]['headers'])
-                expected_final_headers = headers.copy()
-                expected_final_headers['Accept'] = 'application/json'
-                expected_final_headers['Authorization'] = '%s %s' % (newtoken['token_type'], newtoken['access_token'])
-                self.assertEquals(expected_final_headers, req_method.call_args_list[1][1]['headers'])
-
-                # Check Data
-                self.assertEquals(data, req_method.call_args_list[0][1]['data'])
-                self.assertEquals(data, req_method.call_args_list[1][1]['data'])
-
-                # Check response
-                self.assertEquals(second_response, result)
-
-    def test_make_request_exception(self):
-        # Set the environ
-        usertoken = controller.plugins.toolkit.c.usertoken = {
-            'token_type': 'bearer',
-            'access_token': 'access_token',
-            'refresh_token': 'refresh_token'
-        }
-
-        method = 'get'
-        url = 'http://example.com'
-        headers = {
-            'Content-Type': 'application/json'
-        }
-        data = 'This is an example test...?'
-
-        expected_headers = headers.copy()
-        expected_headers['Authorization'] = '%s %s' % (usertoken['token_type'], usertoken['access_token'])
-
-        req_method = MagicMock(side_effect=ConnectionError)
-        setattr(controller.requests, method, req_method)
-
-        # Call the function
-        with self.assertRaises(ConnectionError):
-            self.instanceController._make_request(method, url, headers, data)
-
-    @parameterized.expand([
-        (True, '',                                                                                        'provider_name', 'testResource', '1.0', True),
-        (True,  '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, 'provider name', 'testResource', '1.0'), 'provider name', 'testResource', '1.0', False),
-        (False, '',                                                                                       'provider_name', 'testResource', '1.0', False),
-        (False, '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, 'provider name', 'testResource', '1.0'), 'provider name', 'testResource', '1.0', False),
-    ])
-    def test_update_acquire_url(self, private, acquire_url, resource_provider, resource_name, resource_version, should_update):
-        c = controller.plugins.toolkit.c
-        c.user = resource_provider
-        package_update = MagicMock()
-        controller.plugins.toolkit.get_action = MagicMock(return_value=package_update)
-
-        # Call the method
-        dataset = {
-            'private': private,
-            'acquire_url': acquire_url
-        }
-        resource = {
-            'name': resource_name,
-            'version': resource_version,
-            'provider': resource_provider
-        }
-        expected_dataset = dataset.copy()
-        new_name = resource['name'].replace(' ', '%20')
-        expected_dataset['acquire_url'] = '%s/search/resource/%s/%s/%s' % (BASE_STORE_URL, resource['provider'], new_name, resource['version'])
-
-        # Update Acquire URL
-        self.instanceController._update_acquire_url(dataset, resource)
-
-        # Check that the acquire URL has been updated
-        if should_update:
-            context = {'model': controller.model, 'session': controller.model.Session,
-                       'user': c.user or c.author, 'auth_user_obj': c.userobj,
-                       }
-            package_update.assert_called_once_with(context, expected_dataset)
-        else:
-            self.assertEquals(0, package_update.call_count)
-
-    @parameterized.expand([
-        ([], None),
-        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], 0),
-        ([{'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], None),
-        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id'] + 'a'), 'state': 'active', 'name': 'a', 'version': '1.0'}], None),
-        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'deleted', 'name': 'a', 'version': '1.0'}], None),
-        ([{'link': 'google.es', 'state': 'active'},
-          {'link': 'apple.es', 'state': 'active'},
-          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'deleted'}], None),
-        ([{'link': 'google.es', 'state': 'active'},
-          {'link': 'apple.es', 'state': 'active'},
-          {'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active'}], None),
-        ([{'link': 'google.es', 'state': 'active'},
-          {'link': 'apple.es', 'state': 'active'},
-          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], 2)
-
-    ])
-    def test_get_existing_resource(self, current_user_resources, id_correct_resource):
-        # Set up the test and its dependencies
-        req = MagicMock()
-        req.json = MagicMock(return_value=current_user_resources)
-        self.instanceController._make_request = MagicMock(return_value=req)
-        self.instanceController._update_acquire_url = MagicMock()
-
-        # Get the expected result
-        if id_correct_resource is not None:
-            expected_resource = {
-                'provider': controller.plugins.toolkit.c.user,
-                'name': current_user_resources[id_correct_resource]['name'],
-                'version': current_user_resources[id_correct_resource]['version']
-            }
-        else:
-            expected_resource = None
-
-        # Call the function and check the result
-        dataset = DATASET.copy()
-        dataset['private'] = True
-        self.assertEquals(expected_resource, self.instanceController._get_existing_resource(dataset))
-
-        # Update Acquire URL method is called (when the dataset is registered as resource in the Store)
-        if expected_resource is not None:
-            self.instanceController._update_acquire_url.assert_called_once_with(dataset, current_user_resources[id_correct_resource])
-
-    @parameterized.expand([
-        (True,),
-        (False,)
-    ])
-    def test_create_resource(self, private):
-        c = controller.plugins.toolkit.c
-        c.user = 'provider name'
-        resource = {
-            'provider': controller.plugins.toolkit.c.user,
-            'name': 'resource name',
-            'version': 'resource version',
-            'link': 'example link'
-        }
-
-        expected_resource = {
-            'provider': controller.plugins.toolkit.c.user,
-            'name': resource['name'],
-            'version': resource['version']
-        }
-
-        self.instanceController._get_resource = MagicMock(return_value=resource)
-        self.instanceController._make_request = MagicMock()
-        self.instanceController._update_acquire_url = MagicMock()
-
-        # Call the function and check that we recieve the correct result
-        dataset = DATASET.copy()
-        dataset['private'] = private
-        self.assertEquals(expected_resource, self.instanceController._create_resource(dataset))
-
-        # Assert that the methods has been called
-        self.instanceController._get_resource.assert_called_once_with(dataset)
-        headers = {'Content-Type': 'application/json'}
-        self.instanceController._make_request.assert_called_once_with('post', '%s/api/offering/resources' % BASE_STORE_URL, headers, json.dumps(resource))
-
-        # Check that the acquire URL has been updated
-        self.instanceController._update_acquire_url.assert_called_once_with(dataset, resource)
-
-    @parameterized.expand([
-        (True,),
-        (False,)
-    ])
-    def test_rollback(self, offering_created):
-        user_nickname = controller.plugins.toolkit.c.user = 'smg'
-        # Configure mocks
-        self.instanceController._make_request = MagicMock()
-        # Call the function
-        self.instanceController._rollback(OFFERING_INFO_BASE, offering_created)
-
-        if offering_created:
-            self.instanceController._make_request.assert_any_call('delete', '%s/api/offering/offerings/%s/%s/%s' % (BASE_STORE_URL,
-                                                                  user_nickname, OFFERING_INFO_BASE['name'], OFFERING_INFO_BASE['version']))
-
-    @parameterized.expand([
-        (True,  None),
-        (False, None),
-        (True,  [Exception(EXCEPTION_MSG)],                   EXCEPTION_MSG,        False),
-        (False, [Exception(EXCEPTION_MSG)],                   EXCEPTION_MSG,        False),
-        (True,  [ConnectionError(EXCEPTION_MSG)],             CONNECTION_ERROR_MSG, False),
-        (False, [ConnectionError(EXCEPTION_MSG)],             CONNECTION_ERROR_MSG, False),
-        (True,  [None, Exception(EXCEPTION_MSG)],             EXCEPTION_MSG,        True),
-        (False, [None, Exception(EXCEPTION_MSG)],             EXCEPTION_MSG,        True),
-        (True,  [None, ConnectionError(EXCEPTION_MSG)],       CONNECTION_ERROR_MSG, True),
-        (False, [None, ConnectionError(EXCEPTION_MSG)],       CONNECTION_ERROR_MSG, True),
-        (True,  [None, None, Exception(EXCEPTION_MSG)],       EXCEPTION_MSG,        True),
-        (False, [None, None, Exception(EXCEPTION_MSG)],       EXCEPTION_MSG,        True),
-        (True,  [None, None, ConnectionError(EXCEPTION_MSG)], CONNECTION_ERROR_MSG, True),
-        (False, [None, None, ConnectionError(EXCEPTION_MSG)], CONNECTION_ERROR_MSG, True)
-    ])
-    def test_create_offering(self, resource_exists, make_req_side_effect, expected_result=True, offering_created=False):
-
-        # Mock the plugin functions
-        offering = {'offering': 1}
-        resource = {'resource': 2}
-        tags = {'tags': ['dataset']}
-        resource = {
-            'provider': 'provider name',
-            'name': 'resource name',
-            'version': 'resource version'
-        }
-        self.instanceController._get_resource = MagicMock(return_value=resource)
-        self.instanceController._get_offering = MagicMock(return_value=offering)
-        self.instanceController._get_tags = MagicMock(return_value=tags)
-        self.instanceController._get_existing_resource = MagicMock(return_value=resource if resource_exists else None)
-        self.instanceController._create_resource = MagicMock(return_value=resource)
-        self.instanceController._rollback = MagicMock()
-        self.instanceController._make_request = MagicMock(side_effect=make_req_side_effect)
-        user_nickname = controller.plugins.toolkit.c.user = 'smg'
-
-        # Call the function
-        result = self.instanceController.create_offering(DATASET, OFFERING_INFO_BASE)
-        self.assertEquals(expected_result, result)
-
-        # result == True if the offering was created properly
-        if expected_result is True:
-
-            self.instanceController._get_existing_resource.assert_called_once_with(DATASET)
-            if not resource_exists:
-                self.instanceController._create_resource.assert_called_once_with(DATASET)
-            self.instanceController._get_offering.assert_called_once_with(OFFERING_INFO_BASE, resource)
-            self.instanceController._get_tags.assert_called_once_with(OFFERING_INFO_BASE)
-
-            def check_make_request_calls(call, method, url, headers, data):
-                self.assertEquals(method, call[0][0])
-                self.assertEquals(url, call[0][1])
-                self.assertEquals(headers, call[0][2])
-                self.assertEquals(data, call[0][3])
-
-            call_list = self.instanceController._make_request.call_args_list
-            base_url = '%s/api/offering' % BASE_STORE_URL
-            headers = {'Content-Type': 'application/json'}
-            pkg_name = OFFERING_INFO_BASE['name']
-            version = OFFERING_INFO_BASE['version']
-            check_make_request_calls(call_list[0], 'post', '%s/offerings' % base_url, headers, json.dumps(offering))
-            check_make_request_calls(call_list[1], 'put', '%s/offerings/%s/%s/%s/tag' % (base_url, user_nickname, pkg_name, version), headers, json.dumps(tags))
-            check_make_request_calls(call_list[2], 'post', '%s/offerings/%s/%s/%s/publish' % (base_url, user_nickname, pkg_name, version), headers, json.dumps({'marketplaces': []}))
-        else:
-            self.instanceController._rollback.assert_called_once_with(OFFERING_INFO_BASE, offering_created)
-
-    @parameterized.expand([
-        (False, False, {},),
-        # Test missing fields
+        # (False, False, {},),
+        # # Test missing fields
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},),
         (True,  False, {'version': '1.0', 'pkg_id': 'package_id'}),
         (True,  False, {'name': 'a', 'pkg_id': 'package_id'}),
@@ -545,8 +85,8 @@ class UIControllerTest(unittest.TestCase):
         # If 'update_acquire_url' is in the request content, the acquire_url should be updated
         # only when the offering has been published correctly
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},),
-        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},                               'Impossible to connect with the Store'),
-        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},     'Impossible to connect with the Store'),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id'},                               controller.StoreException('Impossible to connect with the Store')),
+        (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'update_acquire_url': ''},     controller.StoreException('Impossible to connect with the Store')),
         # Requests with the fields not tested above
         # Test with and without tags
         (True,  False, {'name': 'a', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
@@ -556,9 +96,9 @@ class UIControllerTest(unittest.TestCase):
         # Request will all the fields
         (True,  False, {'name': 'A B C D', 'version': '1.0', 'pkg_id': 'package_id', 'description': 'Example Description',
                         'license_title': 'cc', 'license_description': 'Desc', 'tag_string': 'tag1,tag2,tag3',
-                         'price': '1.1', 'image_upload': MagicMock(), 'update_acquire_url': ''}),
+                        'price': '1.1', 'image_upload': MagicMock(), 'update_acquire_url': ''}),
     ])
-    def test_publish(self, allowed, private, post_content={}, create_offering_res=True):
+    def test_publish(self, allowed, private, post_content={}, create_offering_res='http://some_url.com'):
 
         errors = {}
         current_package = {'tags': [{'name': 'tag1'}, {'name': 'tag2'}], 'private': private, 'acquire_url': 'http://example.com'}
@@ -575,7 +115,7 @@ class UIControllerTest(unittest.TestCase):
         controller.plugins.toolkit.check_access = MagicMock(side_effect=self._toolkit.NotAuthorized if allowed is False else None)
         controller.plugins.toolkit._ = self._toolkit._
         controller.request.POST = post_content
-        self.instanceController.create_offering = MagicMock(return_value=create_offering_res)
+        self._store_connector_instance.create_offering = MagicMock(side_effect=[create_offering_res])
         user = controller.plugins.toolkit.c.user
         pkg_id = 'dhjus2-fdsjwdf-fq-dsjager'
 
@@ -601,7 +141,7 @@ class UIControllerTest(unittest.TestCase):
             # Calculate errors
             if 'name' not in post_content:
                 errors['Name'] = [MISSING_ERROR]
-            
+
             if 'version' not in post_content:
                 errors['Version'] = [MISSING_ERROR]
 
@@ -624,7 +164,7 @@ class UIControllerTest(unittest.TestCase):
 
             if errors:
                 # If the parameters are invalid, the function create_offering must not be called
-                self.assertEquals(0, self.instanceController.create_offering.call_count)
+                self.assertEquals(0, self._store_connector_instance.create_offering.call_count)
             else:
 
                 # Default image should be used if the users has not uploaded a image
@@ -649,21 +189,18 @@ class UIControllerTest(unittest.TestCase):
                     'image_base64': expected_image
                 }
 
-                self.instanceController.create_offering.assert_called_once_with(current_package, expected_data)
+                self._store_connector_instance.create_offering.assert_called_once_with(current_package, expected_data)
 
-                if create_offering_res is True:
-
-                    offering_name = post_content['name'].replace(' ', '%20')
-                    offering_url = '%s/offering/%s/%s/%s' % (BASE_STORE_URL, user, offering_name, post_content['version'])
-
-                    controller.helpers.flash_success.assert_called_once_with('Offering <a href="%s" target="_blank">' % offering_url +
-                                                                             '%s</a> published correctly.' % post_content['name'],
-                                                                             allow_html=True)
-                else:
-                    errors['Store'] = [create_offering_res]
+                if isinstance(create_offering_res, Exception):
+                    errors['Store'] = [create_offering_res.message]
                     # The package should not be updated if the create_offering returns an error
                     # even if 'update_acquire_url' is present in the request content.
                     self.assertEquals(0, package_update.call_count)
+
+                else:
+                    controller.helpers.flash_success.assert_called_once_with('Offering <a href="%s" target="_blank">' % create_offering_res +
+                                                                             '%s</a> published correctly.' % post_content['name'],
+                                                                             allow_html=True)
 
         expected_pkg = current_package.copy()
         expected_pkg['tag_string'] = ','.join([tag['name'] for tag in current_package['tags']])
