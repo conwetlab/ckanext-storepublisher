@@ -39,7 +39,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=[
-        # -*- Extra requirements: -*-
+        'requests-oauthlib==0.4.0'
     ],
     entry_points='''
         [ckan.plugins]
