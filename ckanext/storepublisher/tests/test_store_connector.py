@@ -34,7 +34,6 @@ DATASET = {
     'notes': 'Dataset description. This can be a very long field and can include markdown syntax'
 }
 
-
 OFFERING_INFO_BASE = {
     'pkg_id': 'identifier',
     'name': 'Offering 1',
@@ -499,3 +498,43 @@ class StoreConnectorTest(unittest.TestCase):
         except store_connector.StoreException as e:
             self.instance._rollback.assert_called_once_with(OFFERING_INFO_BASE, offering_created)
             self.assertEquals(e.message, exception_text)
+
+    @parameterized.expand([
+        ([], []),
+        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], [0]),
+        ([{'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], []),
+        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id'] + 'a'), 'state': 'active', 'name': 'a', 'version': '1.0'}], []),
+        ([{'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'deleted', 'name': 'a', 'version': '1.0'}], []),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'deleted'}], []),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_STORE_URL, DATASET['id']), 'state': 'active'}], []),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'}], [2]),
+        ([{'link': 'google.es', 'state': 'active'},
+          {'link': 'apple.es', 'state': 'active'},
+          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'a', 'version': '1.0'},
+          {'link': '%s/dataset/%s' % (BASE_SITE_URL, DATASET['id']), 'state': 'active', 'name': 'b', 'version': '5.7'}], [2, 3])
+    ])
+    def test_delete_attached_resources(self, current_user_resources, valid_resources):
+
+        # Set up the test and its dependencies
+        req = MagicMock()
+        req.json = MagicMock(return_value=current_user_resources)
+        self.instance._make_request = MagicMock(return_value=req)
+
+        user_nickname = 'smg'
+        store_connector.plugins.toolkit.c.user = user_nickname
+
+        # Call the function
+        dataset = DATASET.copy()
+        dataset['private'] = True
+        self.instance.delete_attached_resources(dataset)
+
+        for valid_resource_id in valid_resources:
+            resource = current_user_resources[valid_resource_id]
+            self.instance._make_request.assert_any_call('delete', '%s/api/offering/resources/%s/%s/%s' %
+                                                        (BASE_STORE_URL, user_nickname, resource['name'], resource['version']))
