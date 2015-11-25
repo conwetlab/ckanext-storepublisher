@@ -1,0 +1,3 @@
+recursive-include ckanext/storepublisher/assets *
+recursive-include ckanext/storepublisher/templates *
+recursive-include ckanext/storepublisher/fanstatic *

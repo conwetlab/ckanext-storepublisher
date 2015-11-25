@@ -22,7 +22,7 @@ Install this extension in your CKAN instance is as easy as intall any other CKAN
 
 * Download the source from this GitHub repo.
 * Activate your virtual environment (generally by running `. /usr/lib/ckan/default/bin/activate`)
-* Install the extension by running `python setup.py develop`
+* Install the extension by running `python setup.py install`
 * Modify your configuration file (generally in `/etc/ckan/default/production.ini`) and add `storepublisher` in the `ckan.plugins` setting. 
 * In the same config file, specify the location of FIWARE Store by adding the `ckan.storepublisher.store_url` setting. In addition, you must also set the Repository used by the store. To do so, add the `ckan.storepublisher.repository` setting
 * Restart your apache2 reserver (`sudo service apache2 restart`)
