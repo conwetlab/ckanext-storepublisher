@@ -70,12 +70,12 @@ then itself be extended to add/remove blocks of functionality. #}
       <div class="controls ">
         <input id="field-image_upload" type="file" name="image_upload" value="" placeholder="" title="Upload a file on your computer" style="display: none;">
         <a id="button-upload" href="javascript:;" class="btn" style="display: inline-block;">
-          <i class="icon-cloud-upload"></i>{% trans %}Upload{% endtrans %}
+          <i class="icon-cloud-upload fa fa-cloud-upload"></i>{% trans %}Upload{% endtrans %}
         </a>
         <a id="button-remove" href="javascript:;" class="btn btn-danger" style="display: none;">{% trans %}Remove{% endtrans %}
         </a>
         <span class="info-block info-inline">
-          <i class="icon-info-sign"></i>
+          <i class="icon-info-sign fa fa-info-circle"></i>
           {% trans %}
             Attach an image to the offering. If you do not upload an image, a default one will be used.
           {% endtrans %}
@@ -92,7 +92,7 @@ then itself be extended to add/remove blocks of functionality. #}
             <input id="field-open" type="checkbox" name="open" value="" {{ "checked " if is_open }}>
             {% trans %}Open Offering{% endtrans %}
             <span class="info-block info-inline" style="font-weight: normal;">
-              <i class="icon-info-sign"></i>
+              <i class="icon-info-sign fa fa-info-circle"></i>
               {% trans %}
                 Open Offerings cannot be acquired so their resources are public by default. Non-open offerings must be acquired even if they are free so their terms must be accepted.
               {% endtrans %}
@@ -108,7 +108,7 @@ then itself be extended to add/remove blocks of functionality. #}
         <div class="controls ">
           <input id="field-price" type="text" name="price" value="{{ price }}" placeholder="eg. 0, 28.99, 3.50, 9.00">
           <span class="info-block info-inline">
-            <i class="icon-info-sign"></i>
+            <i class="icon-info-sign fa fa-info-circle"></i>
             {% trans %}
               Price in Euros. Leave it in blank to create a <strong>free</strong> offering.
             {% endtrans %}
